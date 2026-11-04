@@ -1,0 +1,10 @@
+--- a/apps/server/dist/client/index.html
++++ b/apps/server/dist/client/index.html
+@@ -398,5 +398,7 @@
+         </div>
+       </div>
+     </div>
++  <!-- t3-adds:model-council -->
++    <script type="module" src="/assets/model-council/ui.mjs"></script>
+   </body>
+ </html>

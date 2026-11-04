@@ -1,0 +1,13 @@
+{
+  "id": "model-council",
+  "version": "0.2.0",
+  "description": "Shared context, independent opinions, peer review, and a final answer in the current T3 chat.",
+  "compatibility": {
+    "version": "0.1.6",
+    "commit": "2359643cffa6"
+  },
+  "dependencies": [],
+  "entry": "src/ui.mjs",
+  "adapter": "src/host-v016.mjs",
+  "name": "Model Council"
+}

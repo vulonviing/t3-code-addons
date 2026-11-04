@@ -1,0 +1,18 @@
+{
+  "name": "@t3-adds/model-council",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent model opinions, peer review, and one final answer inside T3 Code.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py",
+    "check": "python3 scripts/install.py check",
+    "stage": "python3 scripts/install.py stage",
+    "apply": "python3 scripts/install.py apply",
+    "update-addon": "python3 scripts/install.py update",
+    "restore": "python3 scripts/install.py restore"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.7"
+  }
+}

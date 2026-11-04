@@ -1,0 +1,14 @@
+node_modules/
+.cache/
+backups/
+scripts/__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+*.sqlite
+*.sqlite-*
+*.pem
+*.key

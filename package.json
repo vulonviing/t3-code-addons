@@ -1,0 +1,13 @@
+{
+  "name": "t3-code-addons",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "npm --prefix addons/model-council ci",
+    "test": "npm --prefix addons/model-council test",
+    "check": "python3 addons/model-council/scripts/install.py check",
+    "inject": "python3 addons/model-council/scripts/install.py apply",
+    "update-addon": "python3 addons/model-council/scripts/install.py update",
+    "restore": "python3 addons/model-council/scripts/install.py restore"
+  }
+}
