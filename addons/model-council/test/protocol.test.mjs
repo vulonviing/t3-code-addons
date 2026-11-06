@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectContext, makeJob, opinionPrompt, reviewPrompt, synthesisPrompt, synthesisMessage, contribution, routeRef, MAX_CONTRIBUTION_BYTES } from '../src/protocol.mjs';
+import { selectContext, makeJob, opinionPrompt, reviewPrompt, synthesisPrompt, synthesisMessage, contribution, routeRef, MAX_CONTRIBUTION_BYTES, roundLimit, reviewContribution, normalizeJob } from '../src/protocol.mjs';
 
 import { fixture } from './fixtures.mjs';
 
@@ -58,4 +58,38 @@ test('final message carries council evidence as referenced native context, keepi
     assert.ok(JSON.stringify(record.payload).length <= 64_000);
     assert.ok(message.text.includes(`t3-context://v1/model-council/${record.contextId}`));
   }
+});
+
+
+test('round limit accepts custom integers and rejects invalid input', () => {
+  for (const n of [2, 5, 10, 100]) assert.equal(roundLimit(n), n);
+  for (const n of [0, 1, -5, 2.5, NaN, Infinity, '5', Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => roundLimit(n), /whole number/);
+  const job = fixture();
+  assert.throws(() => makeJob({ parent: {}, question: 'q', members: job.members, maxRounds: 1 }), /whole number/);
+});
+
+test('only a valid final control line finishes a model; missing or quoted signals continue', () => {
+  assert.deepEqual(reviewContribution('My final position.\n{"councilStatus":"done"}', 'member'), { text: 'My final position.', truncated: false, done: true });
+  for (const text of ['We are done.', '{"councilStatus":"done"}\nMore discussion', '```\n{"councilStatus":"done"}\n```', '{"councilStatus":"unknown"}', 'My position.\n{"councilStatus":"continue"}']) {
+    assert.equal(reviewContribution(text, 'member').done, false);
+  }
+  const long = reviewContribution('x'.repeat(30_000) + '\n{"councilStatus":"done"}', 'member');
+  assert.equal(long.done, true); assert.equal(long.truncated, true);
+});
+
+test('round packets exclude current-round answers and retain earlier finished positions', () => {
+  const job = fixture(); job.maxRounds = 5;
+  job.members[0].reviews = [{ round: 2, response: { text: 'Settled position', done: true } }, { round: 3, response: { text: 'CURRENT ANSWER', done: false } }];
+  const prompt = reviewPrompt(job, 3);
+  assert.match(prompt, /Settled position/); assert.match(prompt, /finished debating/);
+  assert.doesNotMatch(prompt, /CURRENT ANSWER/);
+});
+
+test('legacy saved reviews migrate without losing their response or command ID', () => {
+  const job = fixture(); delete job.maxRounds; delete job.round;
+  job.members.forEach((m) => { delete m.reviews; m.review = { text: 'Saved review' }; });
+  normalizeJob(job);
+  assert.equal(job.maxRounds, 2);
+  assert.equal(job.members[0].reviews[0].response.text, 'Saved review');
+  assert.equal(job.members[0].reviews[0].messageId, job.members[0].reviewMessageId);
 });

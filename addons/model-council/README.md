@@ -1,12 +1,12 @@
 # Model Council
 
-A T3 Adds addon that gathers independent opinions from 2–5 models, runs one round of peer review, and presents one final answer through the model selected in your current T3 chat.
+A T3 Adds addon that gathers independent opinions from 2–5 models, runs configurable peer-review rounds with individual early completion, and presents one final answer through the model selected in your current T3 chat.
 
 This folder contains the source, manifest, tests, and installation tools. It works independently of the rest of the addon library and does not require a T3 source checkout.
 
 ## Requirements
 
-- macOS with **T3 Code Beta 0.1.6**, source commit **`2359643cffa6`**.
+- macOS with **T3 Code Beta 0.1.7**, source commit **`322f6544dfad`**.
 - Python 3 and the macOS `ditto` and `codesign` commands for installation.
 - Node.js 20+ and npm for optional automated tests.
 - At least two usable model selections in T3. Provider subscriptions and usage limits still apply.
@@ -43,16 +43,21 @@ The modified app uses an ad-hoc local signature. Apple-issued distributor identi
 ## Use
 
 1. Open an existing chat and click **Model Council** next to the attachment button inside the composer.
-2. Enter a question. Select models from the provider lists and click **Add**.
-3. Choose each member's **Thinking effort**, where supported. **Default** leaves that setting to T3/the provider.
-4. Click **Start council**.
-5. Inspect independent opinions and peer reviews in the council card, or open each member's native T3 chat.
+2. Enter a question. Expand **Add models**, select models from the provider lists, and click **Add**. Selected models appear as separate cards under **Council members**.
+3. Choose each member's thinking or reasoning level in its card, where supported. **Default** leaves that setting to T3/the provider.
+4. Set **Maximum rounds** to a whole number of at least 2 (default: 2). The independent opinion counts as round 1; the final answer is separate.
+5. Click **Start council**.
+6. Inspect independent opinions and peer reviews in the council card, or open each member's native T3 chat.
 
-Each member uses two turns: an independent opinion, then a review of all initial opinions. Member effort settings are preserved across both rounds. The model currently selected in the main chat produces the final answer using its existing model and effort settings.
+Each member gives an independent opinion, then reviews the initial opinions and the latest earlier position of every member. All participating models receive the same frozen packet for a round. Member effort settings are preserved across rounds. The limit is a maximum, not a required number of turns: for example, a limit of 5 can finish at round 3. The model currently selected in the main chat produces the final answer using its existing model and effort settings.
+
+Each reviewer is instructed to stop participating when more discussion would not materially improve its recommendation, using an exact final control line: `{"councilStatus":"done"}`. A `continue` line or a missing/malformed signal keeps that member eligible until the limit. A finished member receives no more turns, while its last position remains visible to other members. Once all remaining members finish, or the maximum is reached, synthesis starts. Finishing does not imply agreement.
 
 The council preserves unresolved disagreements. Failed members are reported and are never silently replaced. At least two independent opinions and one completed peer review are required for a final answer.
 
 Use **Stop** to stop members and, when applicable, the council's final-answer turn. If the main chat is busy, the council enters **Ready**; click **Send final answer to chat** when the other work finishes.
+
+After the final answer completes, the addon automatically settles the member chats through T3's native `thread.auto-settle` command. It also attempts cleanup after cancellation or failure. It preserves the chat history and does not settle the original chat. Active, reused, pinned, explicitly kept-active, or concurrently changed member chats are skipped and the council card reports the reason. Pending cleanup resumes after reopening; older completed councils are left unchanged.
 
 ## Update the addon
 
@@ -66,6 +71,16 @@ This rebuilds from the recorded original app, retains the original backup, saves
 
 Keep the external local-state directory: it contains the original app and receipt needed for updates and restoration. Moving or copying the addon source folder does not move private machine state or break its backup references on the same machine.
 
+The installer records full original/installed bundle inventories (file hashes, modes, symlinks), logical ASAR changes, host identity, and addon source hashes. It writes transaction intent before replacing the application and keeps both recovery copies. Staged apps are tied to the original and source hashes. Legacy receipts are adopted only after reconstructing the current installation from its signed original; this verifies current state rather than claiming a complete historical audit. ACLs and extended attributes are not inventoried; application copies use macOS `ditto` and signatures are verified separately.
+
+An unfinished operation blocks new installation operations. Reconcile it with:
+
+```sh
+python3 scripts/install.py recover
+```
+
+Recovery only accepts recorded bundle contents and refuses unexpected application changes. It does not modify chats or council records. All installer commands share an exclusive lock.
+
 If T3 itself has updated, the installer refuses to overwrite it. Review the new release and update the adapter and compatibility manifest before applying the addon again.
 
 ## Remove and restore
@@ -75,6 +90,8 @@ python3 scripts/install.py restore
 ```
 
 Restart T3 afterward. Restoration puts back the original signed app and refuses to overwrite an application that changed after injection. It does not delete council records or member conversations.
+
+Restoration retains the signed original backup and the withdrawn application. Its transaction archives the installation receipt. After withdrawal, an extracted newer official app may be installed with `python3 scripts/install.py install-official --candidate "/external/staging/T3 Code (Beta).app"`. The candidate must have a valid signature, matching distributor team and bundle ID, and a newer stable numeric version. This records the host replacement, keeps the previous application, and leaves the addon withdrawn. Restart T3 and reassess compatibility before reinstalling; this command does not update the addon's compatibility metadata.
 
 ## Folder contents
 
@@ -112,7 +129,9 @@ Do not commit or share local receipts, application backups, test-server profiles
 
 The starting conversation selection is frozen once and shared by all members. Its default budget is 16,000 UTF-8 bytes, prioritizing the original request and recent exchanges. Members receive a source-thread reference for retrieving omitted history. Attachments and private reasoning are not copied. Contributions above 24,000 bytes are shortened explicitly; the full output remains in the native member chat.
 
-The frontend coordinates later rounds. Closing its window may leave an already-started native turn running; reopening T3 resumes remaining steps. Stable command IDs prevent resending accepted turns. Web Locks coordinate execution across windows. Council records live in the browser profile's IndexedDB and do not sync across devices.
+All round responses remain in the local council record and member chats. Final-answer context contains the original opinions, latest reviews, and completion metadata to keep its size bounded regardless of the round limit; earlier reviews can be retrieved from member chats. There is no fixed upper limit beyond a safe integer, so large values can consume substantial model usage if members keep discussing.
+
+The frontend coordinates later rounds. Closing its window may leave an already-started native turn running; reopening T3 resumes remaining steps. Stable per-round command IDs prevent resending accepted turns. In-progress records from the previous two-round format retain their limit and accepted message IDs. Web Locks coordinate execution across windows. Council records live in the browser profile's IndexedDB and do not sync across devices.
 
 Members run in the same project, branch, and workspace, in plan mode with advice-only instructions. These instructions are not an operating-system sandbox; T3's permissions remain authoritative. An opinion request does not authorize implementation work.
 
@@ -127,6 +146,20 @@ npm ci
 npm test
 ```
 
-Tests cover context selection, common inputs, round order, effort forwarding, partial failure, cancellation, timeouts, resume idempotency, busy parent chats, durable storage, and ASAR rewriting. They do not call paid model APIs. The installer also verifies the prepared app's signature and ASAR integrity.
+Tests cover context selection, common inputs, custom round limits, individual early completion, frozen round packets, legacy records, settlement safeguards and cleanup recovery, round order, effort forwarding, partial failure, cancellation, timeouts, resume idempotency, busy parent chats, durable storage, and ASAR rewriting. They do not call paid model APIs. The installer also verifies the prepared app's signature and ASAR integrity.
+
+The configurable-round and automatic-settlement upgrade is covered by simulated controller tests and inspection of the pinned host command schema and handler; it has not been exercised with paid model runs.
 
 Previous live checks verified the native T3 UI/RPC path and final context delivery to Codex. The cross-provider live check was limited by the Claude account's usage cap; not every provider/model combination has been tested.
+
+## T3 0.1.7 adaptation
+
+Addon 0.3.2 targets official T3 0.1.7 / `322f6544dfad`. The host adapter uses the verified atom registry, thread detail/shell, provider configuration, scope, orchestration, and transcript exports from this exact application build. The native multi-model sender starts separate background threads; it does not replace Council's peer-review rounds and final synthesis.
+
+Reasoning controls also honor T3 0.1.7's explicit `role: "reasoning"` descriptor, including provider-specific option IDs, while preserving existing choices and excluding prompt-only levels.
+
+Settlement snapshots remain ISO strings in durable council records. The adapter decodes them to native Effect DateTime values before invoking `thread.auto-settle`; passing persisted strings directly does not meet the native command schema. The controller also accepts native DateTime timestamps when creating the persisted snapshot. Existing ownership, pin, explicit active-state, and concurrent-change safeguards remain in place.
+
+`test/controller.test.mjs` covers settlement with native timestamp shapes. The optional `scripts/verify_host.mjs` imports the real official bundles in an isolated Chromium context, checks adapter reads and command forwarding with fixture-backed atoms, and opens the Council dialog. It fulfills requests from extracted local assets without a server, live profile, credentials, or model calls. Install `playwright-core` only in an external test copy; pass the extracted official client assets directory as its argument. Set `T3_ADDS_TEST_BROWSER` to an existing Chromium executable, or use a Playwright-managed browser. Keep that test copy and its dependencies outside this repository.
+
+These checks verify the bundled adapter and date conversion, not a paid end-to-end council or a live server settlement. After installation, restart T3 to load the new UI.

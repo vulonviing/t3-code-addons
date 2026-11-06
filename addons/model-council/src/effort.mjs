@@ -1,7 +1,7 @@
 const REASONING_IDS = new Set(['reasoningEffort', 'effort', 'reasoning', 'variant', 'reasoning_effort', 'thinking_level', 'thinking']);
 
 export function reasoningControls(model) {
-  return (model?.capabilities?.optionDescriptors ?? []).filter((d) => REASONING_IDS.has(d.id)).flatMap((descriptor) => {
+  return (model?.capabilities?.optionDescriptors ?? []).filter((d) => d.role === 'reasoning' || REASONING_IDS.has(d.id)).flatMap((descriptor) => {
     const choices = descriptor.type === 'boolean'
       ? [{ id: 'true', label: 'On', value: true }, { id: 'false', label: 'Off', value: false }]
       : (descriptor.options ?? []).filter((o) => !descriptor.promptInjectedValues?.includes(o.id)).map((o) => ({ ...o, value: o.id }));

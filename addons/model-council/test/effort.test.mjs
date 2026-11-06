@@ -30,3 +30,14 @@ test('boolean thinking is sent as a boolean rather than a string', () => {
   assert.deepEqual(updated.options, [{ id: 'thinking', value: false }]);
   assert.equal(setReasoningChoice(updated, control, '').options, undefined);
 });
+
+test('native reasoning roles expose provider-specific option IDs without guessing', () => {
+  const capabilities = { optionDescriptors: [
+    { id: 'thought_level', label: 'Thinking', type: 'select', role: 'reasoning', options: [{ id: 'deep', label: 'Deep' }] },
+    { id: 'verbosity', label: 'Output', type: 'select', options: [{ id: 'long', label: 'Long' }] },
+  ] };
+  const controls = reasoningControls({ capabilities });
+  assert.equal(controls.length, 1);
+  const updated = setReasoningChoice({ instanceId: 'acp', model: 'default' }, controls[0], 'deep');
+  assert.deepEqual(updated.options, [{ id: 'thought_level', value: 'deep' }]);
+});

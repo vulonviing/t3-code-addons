@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Build, verify and reversibly inject the pinned Model Council addon."""
 import argparse
-import datetime
+import fcntl
 import json
 import os
 import plistlib
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
 from asar import Archive, digest
+from lifecycle import Transaction, changes, inventory, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT
@@ -76,6 +78,82 @@ def validate_prepared(app):
     run('codesign', '--verify', '--deep', '--strict', str(app))
 
 
+def identity(app):
+    with (app / 'Contents/Info.plist').open('rb') as stream:
+        plist = plistlib.load(stream)
+    archive = Archive(app / 'Contents/Resources/app.asar')
+    package = json.loads(archive.read('package.json'))
+    return {'bundleId': plist['CFBundleIdentifier'], 'version': package['version'],
+            'commit': package.get('t3codeCommitHash')}
+
+
+def verify_signed(app):
+    run('codesign', '--verify', '--deep', '--strict', str(app))
+
+
+def team(app):
+    verify_signed(app)
+    result = subprocess.run(['codesign', '-dv', str(app)], check=True, capture_output=True, text=True)
+    return next((line.split('=', 1)[1] for line in result.stderr.splitlines()
+                 if line.startswith('TeamIdentifier=')), None)
+
+
+def source_record():
+    paths = [ROOT / name for name in ('addon.json', 'compatibility.json', 'integration.patch')]
+    paths += sorted((ROOT / 'src').glob('*.mjs'))
+    paths += sorted(path for path in (ROOT / 'scripts').iterdir() if path.suffix in ('.py', '.mjs'))
+    return {str(path.relative_to(ROOT)): digest(path.read_bytes()) for path in paths}
+
+
+def archive_changes(original, installed):
+    def entries(app):
+        archive = Archive(app / 'Contents/Resources/app.asar')
+        result = {}
+        def walk(node, prefix=''):
+            for name, value in node.get('files', {}).items():
+                path = prefix + name
+                if 'files' in value:
+                    walk(value, path + '/')
+                elif 'link' in value:
+                    result[path] = {'link': value['link']}
+                else:
+                    result[path] = {'sha256': digest(archive.read(path)), 'unpacked': bool(value.get('unpacked'))}
+        walk(archive.header)
+        return result
+    return changes(entries(original), entries(installed))
+
+
+def checked_receipt(app, persist_adoption=False):
+    receipt = json.loads(RECEIPT.read_text())
+    if receipt['app'] != str(app):
+        raise ValueError('Receipt belongs to a different installation.')
+    original = backup_path(receipt['backup'])
+    verify_signed(original)
+    if digest((app / 'Contents/Resources/app.asar').read_bytes()) != receipt['installedAsarHash']:
+        raise ValueError('Installation changed since injection; refusing to overwrite an update.')
+    if 'installedInventory' in receipt:
+        if inventory(app) != receipt['installedInventory'] or inventory(original) != receipt['originalInventory']:
+            raise ValueError('Application or original backup changed since recording; refusing replacement.')
+    else:
+        verify_original(original)
+        # Legacy receipts recorded only the ASAR. Reconstruct the expected bundle
+        # before adopting it; do not invent a historical per-file audit trail.
+        with tempfile.TemporaryDirectory(prefix='adopt-', dir=STATE) as temp:
+            expected = prepare(original, Path(temp) / app.name)
+            if inventory(expected) != inventory(app):
+                raise ValueError('Legacy installation differs from a reproducible build. Inspect before adoption.')
+        receipt.update(schemaVersion=2, adoptedLegacy=True,
+                       host=identity(original), addon=json.loads((ROOT / 'addon.json').read_text()),
+                       sources=source_record(),
+                       originalInventory=inventory(original), installedInventory=inventory(app),
+                       adoptionEvidence='Current bundle matches reconstruction from signed original and current source.')
+        receipt['changes'] = changes(receipt['originalInventory'], receipt['installedInventory'])
+        receipt['archiveChanges'] = archive_changes(original, app)
+        if persist_adoption:
+            write_json(RECEIPT, receipt)
+    return receipt, original
+
+
 def prepare(app, staged):
     original = verify_original(app)
     if staged.exists():
@@ -102,107 +180,137 @@ def prepare(app, staged):
     entitlement_file.write_bytes(plistlib.dumps(entitlements))
     run('codesign', '--force', '--deep', '--sign', '-', '--options', 'runtime', '--entitlements', str(entitlement_file), str(staged))
     validate_prepared(staged)
+    write_json(staged.with_name(staged.name + '.prepared.json'),
+               dict(original=inventory(app), prepared=inventory(staged), sources=source_record()))
     return staged
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['check', 'stage', 'apply', 'update', 'restore'])
+    parser.add_argument('action', choices=['check', 'stage', 'apply', 'update', 'restore', 'recover', 'install-official'])
     parser.add_argument('--app', type=Path, default=Path('/Applications/T3 Code (Beta).app'))
     parser.add_argument('--staged', type=Path, default=STATE / '.cache/staged/T3 Code (Beta).app')
+    parser.add_argument('--candidate', type=Path, help='Extracted official application for install-official')
     args = parser.parse_args()
     app = args.app.resolve()
+    project = ROOT.parents[1] if ROOT.parent.name == 'addons' and (ROOT.parents[1] / 'AGENTS.md').exists() else ROOT
+    for local in (STATE, args.staged, app, args.candidate):
+        if local is not None and (local.resolve() == project or project in local.resolve().parents):
+            raise ValueError('Application bundles, staging, and installation state must stay outside the project.')
+    # A second installer must never race an application swap or receipt update.
+    STATE.mkdir(parents=True, exist_ok=True)
+    with (STATE / 'installation.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        execute(args, app)
+
+
+def execute(args, app):
+    transaction = Transaction(STATE)
+    if args.action == 'recover':
+        print(transaction.recover(verify_signed))
+        return
+    transaction.require_idle()
     if args.action == 'check':
-        archive = Archive(app / 'Contents/Resources/app.asar')
-        if MARKER in archive.read(ENTRY).decode():
-            validate_prepared(app)
-            print('Model Council installed; bundle contents and signature verified.')
+        if RECEIPT.exists():
+            receipt, original = checked_receipt(app)
+            verify_signed(app)
+            print('Model Council installed; full bundle, original backup, and receipt verified.')
         else:
             verify_original(app)
-            print('T3 0.1.6 / 2359643cffa6: compatible original installation.')
+            verify_signed(app)
+            print('Compatible original T3 installation verified.')
         return
     if args.action == 'stage':
         print(prepare(app, args.staged))
         return
-    if args.action == 'update':
-        receipt = json.loads(RECEIPT.read_text())
-        if receipt['app'] != str(app):
-            raise ValueError('Receipt belongs to a different installation.')
-        if digest((app / 'Contents/Resources/app.asar').read_bytes()) != receipt['installedAsarHash']:
-            raise ValueError('Installation changed since injection; refusing to overwrite an update.')
-        original = backup_path(receipt['backup'])
-        verify_original(original)
-        run('codesign', '--verify', '--deep', '--strict', str(app))
-        staged = prepare(original, args.staged)
-        stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        previous = STATE / 'backups' / stamp / app.name
-        previous.parent.mkdir(parents=True)
-        os.rename(app, previous)
-        try:
-            os.rename(staged, app)
-            validate_prepared(app)
-        except BaseException:
-            if app.exists():
-                os.rename(app, staged)
-            os.rename(previous, app)
-            raise
-        receipt.setdefault('updates', []).append({'at': stamp, 'previous': str(previous.relative_to(STATE))})
-        receipt['installedAsarHash'] = digest((app / 'Contents/Resources/app.asar').read_bytes())
-        pending = RECEIPT.with_suffix('.pending.json')
-        pending.write_text(json.dumps(receipt, indent=2) + '\n')
-        os.replace(pending, RECEIPT)
-        print('Model Council updated. Original backup retained. Restart T3 to load it.')
+    if args.action == 'install-official':
+        if RECEIPT.exists():
+            raise ValueError('Withdraw Model Council before installing an official update.')
+        if args.candidate is None:
+            raise ValueError('install-official requires --candidate.')
+        candidate = args.candidate.resolve()
+        before, after = identity(app), identity(candidate)
+        current_team, candidate_team = team(app), team(candidate)
+        if not current_team or current_team == 'not set' or current_team != candidate_team:
+            raise ValueError('Official update must have the same verified distributor team as the original app.')
+        if before['bundleId'] != after['bundleId']:
+            raise ValueError('Official update has a different application identity.')
+        def version(value):
+            parts = value.split('.')
+            if len(parts) != 3 or not all(part.isdigit() for part in parts):
+                raise ValueError('Automatic installation supports stable numeric versions only.')
+            return tuple(map(int, parts))
+        if version(after['version']) <= version(before['version']):
+            raise ValueError('Candidate must be a newer official release; no downgrade or reinstall.')
+        transaction.start(app, candidate, RECEIPT, None,
+                          dict(action='install-official', hostBefore=before, hostAfter=after,
+                               distributorTeam=candidate_team))
+        transaction.execute(verify_signed)
+        print('Official T3 update installed and verified. Restart T3. Addons remain withdrawn pending review.')
         return
+    if args.action in ('update', 'restore'):
+        receipt, original = checked_receipt(app, persist_adoption=True)
+    else:
+        if RECEIPT.exists():
+            raise ValueError('An installation receipt exists. Check or restore it before applying again.')
+        verify_original(app)
+        verify_signed(app)
+        original = app
+        receipt = None
+        if team(original) in (None, 'not set'):
+            raise ValueError('A clean distributor-signed original is required; composed addon installs need a verified plan.')
     if args.action == 'restore':
-        receipt = json.loads(RECEIPT.read_text())
-        if receipt['app'] != str(app):
-            raise ValueError('Receipt belongs to a different installation.')
-        backup = backup_path(receipt['backup'])
-        verify_original(backup)
-        if digest((app / 'Contents/Resources/app.asar').read_bytes()) != receipt['installedAsarHash']:
-            raise ValueError('Installation changed since injection; refusing to overwrite an update.')
-        run('codesign', '--verify', '--deep', '--strict', str(backup))
-        removed = backup.parent / ('removed-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.app')
-        os.rename(app, removed)
-        try:
-            os.rename(backup, app)
-        except BaseException:
-            os.rename(removed, app)
-            raise
-        RECEIPT.rename(RECEIPT.with_suffix('.restored.json'))
-        print(f'Original installation restored. Removed addon bundle kept at {removed}')
-        return
-    if RECEIPT.exists():
-        raise ValueError('An installation receipt exists. Check or restore it before applying again.')
-    verify_original(app)
-    staged = args.staged
-    if not staged.exists():
-        prepare(app, staged)
-    validate_prepared(staged)
-    stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    backup = STATE / 'backups' / stamp / app.name
-    backup.parent.mkdir(parents=True)
-    receipt = {
-        'app': str(app), 'backup': str(backup.relative_to(STATE)), 'installedAt': stamp,
-        'installedAsarHash': digest((staged / 'Contents/Resources/app.asar').read_bytes()),
-        'originalAsarHash': digest((app / 'Contents/Resources/app.asar').read_bytes()),
-    }
-    pending = RECEIPT.with_suffix('.pending.json')
-    pending.write_text(json.dumps(receipt, indent=2) + '\n')
-    os.rename(app, backup)
-    try:
-        os.rename(staged, app)
-        validate_prepared(app)
-    except BaseException:
-        if app.exists():
-            os.rename(app, staged)
-        os.rename(backup, app)
-        pending.unlink(missing_ok=True)
-        raise
-    os.replace(pending, RECEIPT)
-    print(f'Model Council injected. Original app backup: {backup}')
-    print('Restart T3 Code to load the addon. The running app was not stopped.')
+        if args.staged.exists():
+            raise ValueError('Staging path exists; preserve or remove it before restoration.')
+        args.staged.parent.mkdir(parents=True, exist_ok=True)
+        run('ditto', str(original), str(args.staged))
+        if inventory(args.staged) != receipt['originalInventory']:
+            raise ValueError('Restoration copy differs from the recorded original.')
+        validator = verify_signed
+        next_receipt = None
+    else:
+        if args.staged.exists():
+            prepared_record = args.staged.with_name(args.staged.name + '.prepared.json')
+            if not prepared_record.exists():
+                raise ValueError('Unrecorded staged application; preserve it and prepare a new staging path.')
+            expected = json.loads(prepared_record.read_text())
+            if (expected['original'] != inventory(original) or expected['prepared'] != inventory(args.staged)
+                    or expected['sources'] != source_record()):
+                raise ValueError('Staging contents, source, or original changed; prepare a new staging path.')
+            validate_prepared(args.staged)
+        else:
+            prepare(original, args.staged)
+        validator = validate_prepared
+        installed = inventory(args.staged)
+        next_receipt = dict(schemaVersion=2, app=str(app),
+                            addon=json.loads((ROOT / 'addon.json').read_text()),
+                            host=identity(original), sources=source_record(),
+                            installedAsarHash=digest((args.staged / 'Contents/Resources/app.asar').read_bytes()),
+                            originalAsarHash=digest((original / 'Contents/Resources/app.asar').read_bytes()),
+                            originalInventory=inventory(original), installedInventory=installed)
+        next_receipt['verification'] = {'originalSignature': 'passed', 'preparedSignature': 'passed',
+                                        'asarIntegrity': 'passed', 'addonSources': 'passed'}
+        next_receipt['changes'] = changes(next_receipt['originalInventory'], installed)
+        next_receipt['archiveChanges'] = archive_changes(original, args.staged)
+        if receipt:
+            next_receipt['backup'] = receipt['backup']
+    record = transaction.start(app, args.staged, RECEIPT, next_receipt,
+                               dict(action=args.action, host=identity(original), sources=source_record()))
+    if args.action == 'apply':
+        next_receipt['backup'] = str(Path(record['previous']).relative_to(STATE))
+        record['receiptAfter'] = next_receipt
+        write_json(transaction.pending, record)
+    transaction.execute(validator)
+    print('Original signed T3 restored.' if args.action == 'restore' else 'Model Council installed and verified.')
+    print('File changes and recovery copies recorded outside the project. Restart T3 to load the installed bundle.')
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        message = str(error)
+        if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+            message += '\n' + error.stderr.decode(errors='replace')
+        print('Installation stopped: ' + message, file=sys.stderr)
+        sys.exit(1)

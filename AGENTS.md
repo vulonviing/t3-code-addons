@@ -30,6 +30,12 @@ Do not create empty files merely to match this layout.
 
 ## Upstream updates
 
+Use the repository skill `.agents/skills/t3-addon-lifecycle/SKILL.md` for addon installation, withdrawal, and official T3 update coordination. AI evaluates feature necessity and compatibility; verified standalone installers perform application changes. This workflow does not add a runtime dependency to addons.
+
+Every application mutation must have a durable external record before replacement: host and addon/source identity, recoverable originals, before/after file hashes, permission modes and symlink targets, added/changed/removed logical archive entries, and verification results. Record completion afterward. Legacy adoption must disclose missing historical evidence. Unfinished operations must be reconciled before another operation starts.
+
+Before an official update, withdraw recorded addon changes and verify the official application. After updating, reassess each addon: superseded, compatible, adaptation required, or uncertain. Reinstall only verified compatible addons; report adaptations or uncertainty to the user before proceeding unless that development is already authorized. Do not silently lose addon-specific behavior, overwrite unexpected changes, or downgrade a host that may have migrated user data.
+
 1. Identify the installed T3 version or commit and applied addons. Preserve existing work.
 2. Inspect the target official release and verify each addon's integration points.
 3. Apply compatible addons reproducibly. Repeating an operation must not duplicate code, records, or model turns.

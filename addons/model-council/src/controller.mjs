@@ -1,4 +1,4 @@
-import { contribution, opinionPrompt, reviewPrompt, synthesisMessage } from './protocol.mjs';
+import { contribution, opinionPrompt, reviewPrompt, synthesisMessage, normalizeJob, reviewContribution } from './protocol.mjs';
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'rolled_back']);
 const creation = { createdBy: 'user', creationSource: 'web' };
@@ -64,7 +64,8 @@ export class CouncilController {
       attachments: [], modelSelection: selection, dispatchMode: { type: 'start_immediately' }, ...creation,
     });
   }
-  async memberTurn(job, member, stage, signal, prompt) {
+  async memberTurn(job, member, stage, signal, prompt, turn) {
+    const messageId = turn?.messageId ?? member[`${stage}MessageId`];
     const ref = { environmentId: job.ref.environmentId, threadId: member.threadId };
     try {
       await this.ensureActive(job, signal);
@@ -78,10 +79,15 @@ export class CouncilController {
         member.created = true; await this.persist(job);
       }
       await this.ensureActive(job, signal);
-      await this.send(job, member.threadId, member[`${stage}MessageId`], prompt, member.selection);
+      await this.send(job, member.threadId, messageId, prompt, member.selection);
       await this.ensureActive(job, signal);
-      const answer = await awaitAnswer(this.host, ref, member[`${stage}MessageId`], signal, this.timeoutMs);
-      member[stage] = contribution(answer, member.label); delete member.error;
+      const answer = await awaitAnswer(this.host, ref, messageId, signal, this.timeoutMs);
+      if (turn) {
+        turn.response = reviewContribution(answer, member.label);
+        member.review = turn.response;
+        member.done = turn.response.done;
+      } else member[stage] = contribution(answer, member.label);
+      delete member.error;
     } catch (error) {
       if (signal.aborted || error.name === 'AbortError') { await this.stopMember(job, member); throw error; }
       member.error = error.message;
@@ -91,7 +97,11 @@ export class CouncilController {
   }
   async execute(job, signal) {
     try {
-      if (['completed', 'cancelled', 'failed'].includes(job.stage)) return;
+      if (['completed', 'cancelled', 'failed'].includes(job.stage)) {
+        if (job.cleanupPending) await this.settleChildren(job);
+        return;
+      }
+      normalizeJob(job);
       await this.persist(job);
       if (job.cancelRequested) { await this.cancel(job); return; }
       if (job.stage === 'opinions') {
@@ -99,13 +109,35 @@ export class CouncilController {
         await Promise.allSettled(job.members.filter((m) => !m.opinion && !m.error).map((m) => this.memberTurn(job, m, 'opinion', signal, prompt)));
         await this.ensureActive(job, signal);
         if (job.members.filter((m) => m.opinion).length < 2) throw new Error('The council needs at least two independent opinions. Check the member chats.');
-        job.stage = 'reviews'; await this.persist(job);
+        job.roundsCompleted = 1; job.stage = 'reviews'; await this.persist(job);
       }
       if (job.stage === 'reviews') {
-        const prompt = reviewPrompt(job);
-        await Promise.allSettled(job.members.filter((m) => m.opinion && !m.review && !m.error).map((m) => this.memberTurn(job, m, 'review', signal, prompt)));
-        await this.ensureActive(job, signal);
-        if (!job.members.some((m) => m.review)) throw new Error('The peer-review round could not be completed.');
+        while (job.round <= job.maxRounds) {
+          await this.ensureActive(job, signal);
+          const prompt = reviewPrompt(job, job.round);
+          const participants = job.members.filter((m) => m.opinion && !m.done && !m.error);
+          // Persist all IDs before dispatch, so reloads reuse accepted native turns.
+          const turns = participants.map((member) => {
+            let turn = member.reviews.find((r) => r.round === job.round);
+            if (!turn) {
+              turn = { round: job.round, messageId: job.round === 2 ? member.reviewMessageId : `${member.reviewMessageId}-r${job.round}` };
+              member.reviews.push(turn);
+            }
+            return { member, turn };
+          });
+          await this.persist(job);
+          await Promise.allSettled(turns.filter(({ turn }) => !turn.response).map(({ member, turn }) => this.memberTurn(job, member, 'review', signal, prompt, turn)));
+          await this.ensureActive(job, signal);
+          if (!job.members.some((m) => m.review)) throw new Error('The peer-review round could not be completed.');
+          job.roundsCompleted = job.round;
+          const active = job.members.filter((m) => m.opinion && !m.error);
+          if (!active.length) job.stopReason = 'members-unavailable';
+          else if (active.every((m) => m.done)) job.stopReason = 'members-finished';
+          else if (job.round === job.maxRounds) job.stopReason = 'round-limit';
+          job.round++;
+          await this.persist(job);
+          if (job.stopReason) break;
+        }
         job.stage = 'synthesis'; await this.persist(job);
       }
       await this.ensureActive(job, signal);
@@ -124,12 +156,37 @@ export class CouncilController {
           job.finalSent = true; await this.persist(job);
         }
         await awaitAnswer(this.host, job.ref, job.finalMessageId, signal, this.timeoutMs);
-        job.stage = 'completed'; await this.persist(job);
+        job.stage = 'completed'; job.cleanupPending = true; await this.persist(job);
+        await this.settleChildren(job);
       }
     } catch (error) {
       job.stage = signal.aborted || error.name === 'AbortError' ? 'cancelled' : 'failed'; job.error = error.message;
-      await this.stopChildren(job); await this.persist(job);
+      await this.stopChildren(job); job.cleanupPending = true; await this.persist(job);
+      await this.settleChildren(job);
     }
+  }
+  async settleChildren(job) {
+    for (const member of job.members) {
+      if (!member.created || member.settled) continue;
+      try {
+        const ref = { environmentId: job.ref.environmentId, threadId: member.threadId };
+        const projection = this.host.projection(ref);
+        const thread = this.host.parent(ref);
+        const owned = new Set([member.opinionMessageId, member.reviewMessageId, ...(member.reviews ?? []).map((r) => r.messageId)]);
+        if (!thread || !projection || projection.runs.some((r) => !TERMINAL.has(r.status) || !owned.has(r.userMessageId))) {
+          throw new Error('The member chat has active or unrelated work; automatic settlement was skipped.');
+        }
+        if (thread.settledOverride !== 'settled') {
+          if (thread.settledOverride === 'active' || thread.pinnedAt) throw new Error('The member chat was kept active or pinned; automatic settlement was skipped.');
+          member.settleSnapshotAt ??= new Date(thread.updatedAt?.epochMilliseconds ?? thread.updatedAt).toISOString();
+          await this.persist(job);
+          await this.host.command(job.ref, { type: 'thread.auto-settle', commandId: `council:${job.id}:${member.threadId}:settle`, threadId: member.threadId, snapshotAt: member.settleSnapshotAt });
+        }
+        member.settled = true; delete member.settleError;
+      } catch (error) { member.settleError = error.message; }
+      await this.persist(job);
+    }
+    job.cleanupPending = false; await this.persist(job);
   }
   async finish(job) {
     if (job.stage !== 'ready') return;
@@ -156,6 +213,7 @@ export class CouncilController {
         await this.host.command(job.ref, { type: 'run.interrupt', commandId: `council:${job.id}:final:stop`, threadId: job.ref.threadId, runId: run.id, reason: 'Model Council stopped' });
       }
     }
-    job.stage = 'cancelled'; await this.persist(job);
+    job.stage = 'cancelled'; job.cleanupPending = true; await this.persist(job);
+    await this.settleChildren(job);
   }
 }

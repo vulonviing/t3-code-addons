@@ -1,9 +1,9 @@
 // These exports are pinned by the installer to the exact installed bundle hashes.
-import { zc as registry } from '../utils-yaDPh6e6.js';
-import { v as orchestration } from '../queries-BHY08LE9.js';
-import { $ as details, et as shells } from '../projectGrouping-DeQwatMh.js';
-import { ut as server } from '../themePalette-psUm_RuA.js';
-import { r as hasScope } from '../session-DB-2wRf_.js';
+import { al as registry, nS as dateTime } from '../utils-BL51zcsk.js';
+import { v as orchestration } from '../queries-0E2-XBJB.js';
+import { rt as details, it as shells } from '../projectGrouping-aRBPi9Ux.js';
+import { ut as server } from '../themePalette-owjsZZI0.js';
+import { r as hasScope } from '../session-D2SVRPH0.js';
 
 function unwrap(result) {
   if (result._tag === 'Success') return result.value;
@@ -26,7 +26,10 @@ export const host = {
   },
   async command(ref, command) {
     if (!this.canOperate(ref)) throw new Error('This connection does not have permission to modify chats.');
-    return unwrap(await orchestration.v2.dispatchCommand.run(registry, { environmentId: ref.environmentId, input: command }));
+    // Council records persist ISO strings; the native RPC command takes decoded Effect DateTime values.
+    const input = command.type === 'thread.auto-settle'
+      ? { ...command, snapshotAt: dateTime(command.snapshotAt) } : command;
+    return unwrap(await orchestration.v2.dispatchCommand.run(registry, { environmentId: ref.environmentId, input }));
   },
   async transcript(ref) {
     return unwrap(await orchestration.threadTranscript.run(registry, { environmentId: ref.environmentId, input: { threadId: ref.threadId } }));
