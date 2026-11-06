@@ -4,6 +4,10 @@ A T3 Adds addon that gathers independent opinions from 2–5 models, runs config
 
 This folder contains the source, manifest, tests, and installation tools. It works independently of the rest of the addon library and does not require a T3 source checkout.
 
+![Model Council flow: independent opinions feed shared peer-review rounds, which repeat until members finish or the round limit is reached; the selected model then answers in the original chat.](assets/model-council-flow.svg)
+
+Three members are shown; a council supports 2–5. Finishing a review does not imply agreement. The final answer preserves unresolved disagreements.
+
 ## Requirements
 
 - macOS with **T3 Code Beta 0.1.7**, source commit **`322f6544dfad`**.

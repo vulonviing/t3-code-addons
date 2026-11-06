@@ -8,6 +8,10 @@ Unofficial, version-specific extensions; not affiliated with T3 Tools.
 
 - **[Model Council](addons/model-council/README.md)** — Independent opinions from 2–5 models, peer review, per-model thinking effort, and one final answer in the current chat.
 
+![Model Council flow: the same question and context go to independent models, active members review each other's positions, and the selected model synthesizes one final answer.](addons/model-council/assets/model-council-flow.svg)
+
+Review rounds are configurable, members can finish early, and the final answer preserves unresolved disagreements.
+
 ## Library layout
 
 ```text
