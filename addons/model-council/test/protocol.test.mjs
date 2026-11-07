@@ -16,6 +16,18 @@ test('selection preserves whole records, chronology, first request and recent ex
   assert.match(selected.text, /t3_thread_read/);
 });
 
+test('member prompts make participants read-only investigators with terminal, web, and browser research', () => {
+  const job = fixture();
+  for (const prompt of [opinionPrompt(job), reviewPrompt(job, 2)]) {
+    assert.match(prompt, /investigator, not an implementer/);
+    assert.match(prompt, /terminal/);
+    assert.match(prompt, /search the web/);
+    assert.match(prompt, /AppleScript/);
+    assert.match(prompt, /Do not change state/);
+    assert.match(prompt, /Cite your evidence/);
+  }
+});
+
 test('oversized record is omitted intact rather than silently shortened', () => {
   const selected = selectContext({ threadId: 'source', items: [{ item: { id: 'huge', type: 'user_message', text: 'x'.repeat(100_000) } }] });
   assert.equal(selected.selected, 0); assert.equal(selected.omitted, 1);
@@ -37,7 +49,7 @@ test('opinion is independent; review sees the same complete opinion packet; synt
     assert.ok(synthesisPrompt(job).includes(member.review.text));
   }
   assert.match(synthesisPrompt(job), /preserve unresolved disagreements/);
-  assert.match(opinionPrompt(job), /do not edit files/);
+  assert.match(opinionPrompt(job), /do not edit, create, or delete project files/);
 });
 
 test('model identity uses provider instance and model; route handles Electron hash and web paths', () => {

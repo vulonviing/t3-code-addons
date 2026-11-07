@@ -67,6 +67,7 @@ test('three models complete two rounds before one synthesis in original chat', a
   for (const member of job.members) {
     const create = [...env.commands.values()].find((c) => c.type === 'thread.create' && c.threadId === member.threadId);
     assert.deepEqual(create.modelSelection.options, member.selection.options);
+    assert.equal(create.interactionMode, 'default');
     const turns = dispatches.filter((c) => c.threadId === member.threadId);
     assert.equal(turns.length, 2);
     assert.ok(turns.every((c) => JSON.stringify(c.modelSelection.options) === JSON.stringify(member.selection.options)));

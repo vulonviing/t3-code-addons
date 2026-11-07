@@ -73,7 +73,7 @@ export class CouncilController {
         await this.host.command(job.ref, {
           type: 'thread.create', commandId: `council:${job.id}:${member.threadId}:create`, threadId: member.threadId,
           projectId: job.parent.projectId, title: `Model Council · ${member.label} · ${job.question.slice(0, 55)}`,
-          modelSelection: member.selection, runtimeMode: job.parent.runtimeMode, interactionMode: 'plan',
+          modelSelection: member.selection, runtimeMode: job.parent.runtimeMode, interactionMode: 'default',
           branch: job.parent.branch, worktreePath: job.parent.worktreePath, ...creation,
         });
         member.created = true; await this.persist(job);
