@@ -1,11 +1,12 @@
 {
   "name": "@t3-adds/model-council",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "description": "Independent model opinions, peer review, and one final answer inside T3 Code.",
   "scripts": {
-    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_lifecycle.py && python3 scripts/test_installer.py",
+    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_lifecycle.py && python3 scripts/test_installer.py && python3 scripts/test_signing.py",
+    "setup-signing": "python3 scripts/install.py setup-signing",
     "check": "python3 scripts/install.py check",
     "stage": "python3 scripts/install.py stage",
     "apply": "python3 scripts/install.py apply",

@@ -24,6 +24,7 @@ From the T3 Adds library root:
 ```sh
 cd addons/model-council
 python3 scripts/install.py check
+python3 scripts/install.py setup-signing
 python3 scripts/install.py apply
 ```
 
@@ -42,7 +43,21 @@ To prepare a copy before installing, run `python3 scripts/install.py stage`, the
 
 ### Local signing
 
-The modified app uses an ad-hoc local signature. Apple-issued distributor identity and keychain-group entitlements cannot be preserved with that signature, so T3's distributor-bound Touch ID/passkey integration may be affected. Provider credentials are not rewritten. The complete original signed app is retained for restoration.
+Run `python3 scripts/install.py setup-signing` once on each Mac before staging or installing. This creates a unique self-signed code-signing certificate with the generic name **T3 Adds Local Code Signing**, imports its private key into your default user Keychain, and requests user-domain trust restricted to code signing. macOS may ask for local authentication; enter it only in the system dialog. No Apple Developer membership, provider subscription, online account, or network request is required. This is a local signing identity, not an Apple Developer ID or notarization.
+
+The installer signs nested code inside out and pins each component's designated requirement to its bundle identifier and this certificate. Rebuilds keep that identity instead of binding permissions to an ad-hoc build hash. Missing, untrusted, or changed signing keys stop installation; there is no automatic ad-hoc fallback or key rotation. Keep the certificate and private key in Keychain, and keep the external signing configuration. Repeating setup reuses the recorded identity. The certificate lasts ten years; replacing it, moving to another Mac, returning to the official build, or changing the host's bundle identifiers can require fresh permission grants.
+
+For an existing ad-hoc installation, run `setup-signing`, then `python3 scripts/install.py update`. Quit and reopen T3 afterward. macOS may require a one-time regrant of Accessibility, Screen Recording, or Automation because this migration changes the signing identity. Use System Settings to reauthorize only T3 if necessary; do not reset all applications' privacy permissions. Verify the affected features after two quit/reopen cycles and after a subsequent addon update. Signing checks establish identity stability; they cannot automatically grant or prove retention of TCC permissions.
+
+Apple-issued distributor identity and keychain-group entitlements cannot be preserved with a local certificate, so T3's distributor-bound Touch ID/passkey integration may still be affected. Provider credentials are not rewritten. The complete original signed app is retained for restoration. See Apple's [code identity and privacy explanation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements/) and [self-signed identity guidance](https://developer.apple.com/library/archive/technotes/tn2206/).
+
+#### Sharing and privacy
+
+Publish the installer and these instructions, never your generated identity or a locally signed application bundle. Each user generates their own key; do not distribute a shared private key. The public source contains no user certificate fingerprint, personal certificate subject, home-directory path, account identifier, or subscription credential. The generated certificate uses only the generic name above. It does not encode an Apple ID or device name. A certificate fingerprint could link signed builds if you share those builds; keep them local.
+
+`signing/identity.json`, `signing/setup.json`, and the public certificate live under the external addon state directory, not in this repository. These local JSON records contain the certificate fingerprint and Keychain path. Temporary encrypted key/import files and their generated passwords are created in a private external directory and removed after setup; the persistent private key remains in Keychain. Do not commit receipts, signed bundles, certificates, Keychain exports, local signing files, or generated logs. Publishing this source does not itself provide access to subscriptions, credentials, or local folders.
+
+If setup stops at a system authorization prompt, complete or cancel that prompt before retrying. An interrupted import is recorded in `signing/setup.json`; inspect the matching Keychain identity before changing that record. Never delete the setup journal to generate another key blindly. A missing private key cannot be recovered from the public certificate. Restoring the official app remains available independently of the signing configuration; restoration does not delete the Keychain identity or change global trust settings.
 
 ## Use
 
@@ -123,6 +138,7 @@ Application backups, the installation receipt, and staged applications are store
 $HOME/Library/Application Support/T3 Adds/model-council/
   backups/
   .cache/staged/
+  signing/
 ```
 
 The home directory is resolved at runtime; no personal path is embedded in the addon. Set `T3_ADDS_STATE_DIR` to an external parent directory to use another location; the installer appends `model-council/`. Use the same setting for install, update, and restore commands.
@@ -150,7 +166,9 @@ npm ci
 npm test
 ```
 
-Tests cover context selection, common inputs, custom round limits, individual early completion, frozen round packets, legacy records, settlement safeguards and cleanup recovery, round order, effort forwarding, partial failure, cancellation, timeouts, resume idempotency, busy parent chats, durable storage, and ASAR rewriting. They do not call paid model APIs. The installer also verifies the prepared app's signature and ASAR integrity.
+Tests cover context selection, common inputs, custom round limits, individual early completion, frozen round packets, legacy records, settlement safeguards and cleanup recovery, round order, effort forwarding, partial failure, cancellation, timeouts, resume idempotency, busy parent chats, durable storage, ASAR rewriting, signing identity reuse, nested signing order, and rejection of missing signing identities. They do not call paid model APIs or modify Keychain. The installer also verifies the prepared app's signature, certificate requirements, and ASAR integrity.
+
+Local macOS validation additionally signed two different compiled Mach-O builds under one identifier and verified that both satisfy the same certificate-pinned designated requirement despite different file hashes. This validates identity stability, not interactive permission retention. Accessibility, Screen Recording, and Automation still require manual verification after migration and relaunch.
 
 The configurable-round and automatic-settlement upgrade is covered by simulated controller tests and inspection of the pinned host command schema and handler; it has not been exercised with paid model runs.
 
@@ -158,7 +176,7 @@ Previous live checks verified the native T3 UI/RPC path and final context delive
 
 ## T3 0.1.7 adaptation
 
-Addon 0.3.2 targets official T3 0.1.7 / `322f6544dfad`. The host adapter uses the verified atom registry, thread detail/shell, provider configuration, scope, orchestration, and transcript exports from this exact application build. The native multi-model sender starts separate background threads; it does not replace Council's peer-review rounds and final synthesis.
+Addon 0.3.3 targets official T3 0.1.7 / `322f6544dfad`. The host adapter uses the verified atom registry, thread detail/shell, provider configuration, scope, orchestration, and transcript exports from this exact application build. The native multi-model sender starts separate background threads; it does not replace Council's peer-review rounds and final synthesis.
 
 Reasoning controls also honor T3 0.1.7's explicit `role: "reasoning"` descriptor, including provider-specific option IDs, while preserving existing choices and excluding prompt-only levels.
 

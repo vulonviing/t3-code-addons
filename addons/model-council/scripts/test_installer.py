@@ -66,6 +66,17 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Withdraw'):
             install.execute(self.args('install-official'), self.app)
 
+    def test_old_ad_hoc_stage_cannot_bypass_persistent_signing(self):
+        args = self.args('update')
+        shutil.copytree(self.original, args.staged)
+        write_json(args.staged.with_name(args.staged.name + '.prepared.json'),
+                   dict(original=inventory(self.original), prepared=inventory(args.staged), sources={}))
+        with patch.object(install, 'source_record', return_value={}), patch.object(install.signing, 'load', return_value={'sha1': 'A' * 40}):
+            with self.assertRaisesRegex(ValueError, 'signing identity differs'):
+                install.execute(args, self.app)
+        self.assertFalse((self.state / 'transactions/pending.json').exists())
+        self.assertEqual((self.app / 'Contents/Resources/app.asar').read_bytes(), b'addon')
+
     def test_official_update_rejects_team_mismatch_and_downgrade(self):
         self.receipt.unlink()
         candidate = self.root/'Candidate.app'

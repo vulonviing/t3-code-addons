@@ -31,6 +31,8 @@ Each addon has its own folder, English interface and README, manifest, source co
 
 Compatibility is checked per addon. Updating T3 does not automatically make an addon compatible with the new release. Keep local application backups and receipts in the external application-support directory until you have removed or migrated the addon.
 
+Model Council uses a persistent, per-Mac signing identity to keep macOS privacy permissions stable across addon rebuilds. Run its `setup-signing` command once before installation or update; see [local signing and privacy](addons/model-council/README.md#local-signing). Each user generates their own key in Keychain. Publish only source and documentation, never generated signing files or locally signed application bundles.
+
 ## AI-assisted update lifecycle
 
 The repository skill [t3-addon-lifecycle](.agents/skills/t3-addon-lifecycle/SKILL.md) coordinates installation records, withdrawal before official updates, and reassessment afterward. It is discoverable as a project skill in Codex. Ask the agent to use it when updating T3 or managing addons.

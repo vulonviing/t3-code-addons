@@ -13,6 +13,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 from asar import Archive, digest
 from lifecycle import Transaction, changes, inventory, write_json
+import signing
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT
@@ -134,6 +135,8 @@ def checked_receipt(app, persist_adoption=False):
     if 'installedInventory' in receipt:
         if inventory(app) != receipt['installedInventory'] or inventory(original) != receipt['originalInventory']:
             raise ValueError('Application or original backup changed since recording; refusing replacement.')
+        if receipt.get('signing'):
+            signing.verify(app, receipt['signing'])
     else:
         verify_original(original)
         # Legacy receipts recorded only the ASAR. Reconstruct the expected bundle
@@ -155,6 +158,7 @@ def checked_receipt(app, persist_adoption=False):
 
 
 def prepare(app, staged):
+    signing.load(STATE)
     original = verify_original(app)
     if staged.exists():
         raise ValueError(f'Staging path exists: {staged}')
@@ -170,24 +174,16 @@ def prepare(app, staged):
     plist['ElectronAsarIntegrity']['Resources/app.asar']['hash'] = header_hash
     with info.open('wb') as stream:
         plistlib.dump(plist, stream)
-    # Apple-issued identity/keychain entitlements cannot be used by an ad-hoc signature.
-    raw = subprocess.check_output(['codesign', '-d', '--entitlements', ':-', str(app)], stderr=subprocess.DEVNULL)
-    entitlements = plistlib.loads(raw)
-    for key in list(entitlements):
-        if key.startswith('com.apple.developer.') or key in ['com.apple.application-identifier', 'keychain-access-groups']:
-            del entitlements[key]
-    entitlement_file = staged.parent / 'local-entitlements.plist'
-    entitlement_file.write_bytes(plistlib.dumps(entitlements))
-    run('codesign', '--force', '--deep', '--sign', '-', '--options', 'runtime', '--entitlements', str(entitlement_file), str(staged))
+    signature = signing.sign(staged, STATE)
     validate_prepared(staged)
     write_json(staged.with_name(staged.name + '.prepared.json'),
-               dict(original=inventory(app), prepared=inventory(staged), sources=source_record()))
+               dict(original=inventory(app), prepared=inventory(staged), sources=source_record(), signing=signature))
     return staged
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['check', 'stage', 'apply', 'update', 'restore', 'recover', 'install-official'])
+    parser.add_argument('action', choices=['check', 'setup-signing', 'stage', 'apply', 'update', 'restore', 'recover', 'install-official'])
     parser.add_argument('--app', type=Path, default=Path('/Applications/T3 Code (Beta).app'))
     parser.add_argument('--staged', type=Path, default=STATE / '.cache/staged/T3 Code (Beta).app')
     parser.add_argument('--candidate', type=Path, help='Extracted official application for install-official')
@@ -210,6 +206,10 @@ def execute(args, app):
         print(transaction.recover(verify_signed))
         return
     transaction.require_idle()
+    if args.action == 'setup-signing':
+        signing.setup(STATE)
+        print('Persistent local signing configured in Keychain. No subscription or developer account is required.')
+        return
     if args.action == 'check':
         if RECEIPT.exists():
             receipt, original = checked_receipt(app)
@@ -277,10 +277,16 @@ def execute(args, app):
             if (expected['original'] != inventory(original) or expected['prepared'] != inventory(args.staged)
                     or expected['sources'] != source_record()):
                 raise ValueError('Staging contents, source, or original changed; prepare a new staging path.')
+            config = signing.load(STATE)
+            if expected.get('signing', {}).get('sha1') != config['sha1']:
+                raise ValueError('Staged signing identity differs from the configured persistent identity; prepare a new staging path.')
+            signing.verify(args.staged, config)
             validate_prepared(args.staged)
         else:
             prepare(original, args.staged)
-        validator = validate_prepared
+        def validator(path):
+            validate_prepared(path)
+            signing.verify(path, signing.load(STATE))
         installed = inventory(args.staged)
         next_receipt = dict(schemaVersion=2, app=str(app),
                             addon=json.loads((ROOT / 'addon.json').read_text()),
@@ -288,8 +294,10 @@ def execute(args, app):
                             installedAsarHash=digest((args.staged / 'Contents/Resources/app.asar').read_bytes()),
                             originalAsarHash=digest((original / 'Contents/Resources/app.asar').read_bytes()),
                             originalInventory=inventory(original), installedInventory=installed)
+        next_receipt['signing'] = json.loads(args.staged.with_name(args.staged.name + '.prepared.json').read_text())['signing']
         next_receipt['verification'] = {'originalSignature': 'passed', 'preparedSignature': 'passed',
-                                        'asarIntegrity': 'passed', 'addonSources': 'passed'}
+                                        'asarIntegrity': 'passed', 'addonSources': 'passed',
+                                        'persistentSigningRequirements': 'passed'}
         next_receipt['changes'] = changes(next_receipt['originalInventory'], installed)
         next_receipt['archiveChanges'] = archive_changes(original, args.staged)
         if receipt:
