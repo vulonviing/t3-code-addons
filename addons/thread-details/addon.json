@@ -1,0 +1,13 @@
+{
+  "id": "thread-details",
+  "name": "Thread Details",
+  "version": "0.1.0",
+  "description": "Adds a companion card under T3's thread-details card with this chat's token usage per model and the subscription limits left per provider.",
+  "compatibility": {
+    "version": "0.1.7",
+    "commit": "322f6544dfad"
+  },
+  "dependencies": [],
+  "entry": "src/ui.mjs",
+  "adapter": "src/host-v017.mjs"
+}

@@ -64,6 +64,17 @@ Updates are not guaranteed to be automatic. The goal is to keep adaptation limit
 - Keep dependencies, bytecode, local environment files, databases, logs, and credentials out of version control. Ignoring a private file is not a substitute for keeping private state outside this project.
 - Before preparing the project for Git or sharing, inspect all remaining files, including hidden files, for personal data and secrets. Report findings without exposing secret values.
 
+## Overlay addons (Theme Toggle, Thread Details)
+
+Small interface addons that only add files and one `<script>` entry to the installed app follow these rules. The details of lifecycle ordering are in `.agents/skills/t3-addon-lifecycle/references/overlay-addons.md`.
+
+- Install with the addon's own `scripts/install.py` (`check`, `apply`, `update`, `remove`, `recover`, `forget`). Overlays re-sign with the certificate already pinned in the installed app and remove only what they added. They are independent of each other and of Model Council, in any order.
+- Model Council's `update` and `restore` refuse while overlays are installed. Withdraw every overlay with its own `remove` first, run the Model Council operation, then reinstall the overlays.
+- Pin every host file an addon imports by sha256 in `compatibility.json`. Never guess a new hashed chunk name after a T3 update; extract the new client, re-verify the exports, and update the adapter and hashes.
+- Never insert elements into DOM that T3's React components own, and never patch T3's functions. Attach beside T3's elements and read their position instead. A foreign node inside T3's measured containers can break T3's own layout logic.
+- Keep idle cost near zero: no polling, no work while the UI the addon belongs to is closed or the window is in the background, repaint only when data changed, and use browser events (Navigation API, resize and mutation observers on the one element needed) instead of timers.
+- Develop against a mock page, not the installed app: serve the extracted official client assets from an external directory, mock only `registry.subscribe`, and load the addon sources fresh on every request. Install into the real app only after the behavior looks right, and say plainly what was not exercised in a real window.
+
 ## Scope
 
 This document defines the project's direction. It does not itself authorize downloading T3, modifying an installed application, starting model runs, or creating a Git repository. Follow the user's current request and existing session authorization.

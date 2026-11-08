@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "setup": "npm --prefix addons/model-council ci",
-    "test": "npm --prefix addons/model-council test",
+    "test": "npm --prefix addons/model-council test && npm --prefix addons/theme-toggle test && npm --prefix addons/thread-details test",
     "check": "python3 addons/model-council/scripts/install.py check",
     "inject": "python3 addons/model-council/scripts/install.py apply",
     "update-addon": "python3 addons/model-council/scripts/install.py update",

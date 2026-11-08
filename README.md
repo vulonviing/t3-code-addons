@@ -10,7 +10,22 @@ Unofficial, version-specific extensions; not affiliated with T3 Tools.
 
 ![Model Council flow: the same question and context go to independent models, active members review each other's positions, and the selected model synthesizes one final answer.](addons/model-council/assets/model-council-flow.svg)
 
+- **[Theme Toggle](addons/theme-toggle/README.md)** — A light/dark switch next to T3's header buttons.
+- **[Thread Details](addons/thread-details/README.md)** — A companion card under T3's own thread-details card: this chat's tokens per model with hover details, and what is left of each provider's subscription limits.
+
+Theme Toggle and Thread Details are small interface overlays. Each installs by adding only its own files and one `<script>` entry on top of whatever T3 Code is installed, re-signs with the certificate already protecting the app, and withdraws by removing only what it added, so they work with or without Model Council and in any order. Model Council's own installer restores a whole-application backup, so withdraw the overlays before running its `update` or `restore`.
+
 Review rounds are configurable, members can finish early, and the final answer preserves unresolved disagreements.
+
+## Installing the small overlays
+
+```sh
+cd addons/theme-toggle   # or addons/thread-details
+python3 scripts/install.py check
+python3 scripts/install.py apply   # then quit and reopen T3 Code
+```
+
+On an unmodified official app, run `python3 scripts/install.py setup-signing` once first. Use `update` after changing the addon's source and `remove` to withdraw only that addon. Withdraw overlays before running Model Council's `update` or `restore`, then reinstall them. Each addon's README has the details.
 
 ## Library layout
 
@@ -20,6 +35,8 @@ t3-code-addons/
   README.md
   addons/
     model-council/
+    theme-toggle/
+    thread-details/
       README.md
       addon.json
       src/
