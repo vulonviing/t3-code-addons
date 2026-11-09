@@ -1,12 +1,15 @@
 import json
 import struct
 import tempfile
+import contextlib
+import io
 import unittest
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
 from asar import Archive, digest
+import extract_client
 
 
 def make(path, tree, data):
@@ -59,6 +62,59 @@ class ArchiveTests(unittest.TestCase):
             make(base, {'files': {'keep.txt': {'offset': '0', 'size': 4}}}, b'keep')
             with self.assertRaises(ValueError):
                 Archive(base).rewrite(Path(tmp) / 'out.asar', {}, ['missing/file.js'])
+
+
+def client_tree(entries):
+    node = {'files': {}}
+    cursor = node
+    for part in 'apps/server/dist/client'.split('/'):
+        cursor['files'][part] = {'files': {}}
+        cursor = cursor['files'][part]
+    cursor['files'].update(entries)
+    return node
+
+
+def run_extract(app, output):
+    argv, sys.argv = sys.argv, ['extract_client.py', str(app), str(output)]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            extract_client.main()
+    finally:
+        sys.argv = argv
+
+
+class ExtractClientTests(unittest.TestCase):
+    def build(self, tmp, entries, data):
+        app = Path(tmp) / 'T3.app'
+        (app / 'Contents/Resources').mkdir(parents=True)
+        make(app / 'Contents/Resources/app.asar', client_tree(entries), data)
+        return app
+
+    def test_valid_archive_extracts_client_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = self.build(tmp, {'index.html': {'offset': '0', 'size': 4}}, b'page')
+            output = Path(tmp) / 'out'
+            run_extract(app, output)
+            self.assertEqual((output / 'index.html').read_bytes(), b'page')
+
+    def test_dot_dot_entry_is_rejected_and_nothing_escapes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = self.build(tmp, {'..': {'files': {'escape.txt': {'offset': '0', 'size': 4}}}}, b'evil')
+            output = Path(tmp) / 'out'
+            with self.assertRaises(SystemExit) as caught:
+                run_extract(app, output)
+            self.assertIn('..', str(caught.exception))
+            self.assertFalse((Path(tmp) / 'escape.txt').exists())
+            self.assertFalse(output.exists() and any(output.rglob('*.txt')))
+
+    def test_entry_name_with_separator_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = self.build(tmp, {'../../escape.txt': {'offset': '0', 'size': 4}}, b'evil')
+            output = Path(tmp) / 'nested' / 'out'
+            with self.assertRaises(SystemExit):
+                run_extract(app, output)
+            self.assertFalse((Path(tmp) / 'escape.txt').exists())
+            self.assertFalse((Path(tmp) / 'nested' / 'escape.txt').exists())
 
 
 if __name__ == '__main__':
