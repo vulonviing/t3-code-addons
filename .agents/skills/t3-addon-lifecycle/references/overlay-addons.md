@@ -1,4 +1,4 @@
-# Overlay addons: Theme Toggle, Thread Details
+# Overlay addons: Theme Toggle, Thread Details, Orchestrator
 
 Resolve `addons/<id>` relative to the current library; a standalone copy uses its own directory. Each installer is self-contained and identical in behavior; the addon's `addon.json` supplies its identity.
 

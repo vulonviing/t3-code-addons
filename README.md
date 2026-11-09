@@ -10,17 +10,20 @@ Unofficial, version-specific extensions; not affiliated with T3 Tools.
 
 ![Model Council flow: the same question and context go to independent models, active members review each other's positions, and the selected model synthesizes one final answer.](addons/model-council/assets/model-council-flow.svg)
 
+Review rounds are configurable, members can finish early, and the final answer preserves unresolved disagreements.
+
 - **[Theme Toggle](addons/theme-toggle/README.md)** — A light/dark switch next to T3's header buttons.
 - **[Thread Details](addons/thread-details/README.md)** — A companion card under T3's own thread-details card: this chat's tokens per model with hover details, and what is left of each provider's subscription limits.
+- **[Orchestrator](addons/orchestrator/README.md)** — A composer button that turns the chat's agent into a coordinator that only delegates to subagents, with a right-click menu for the default subagent model.
 
-Theme Toggle and Thread Details are small interface overlays. Each installs by adding only its own files and one `<script>` entry on top of whatever T3 Code is installed, re-signs with the certificate already protecting the app, and withdraws by removing only what it added, so they work with or without Model Council and in any order. Model Council's own installer restores a whole-application backup, so withdraw the overlays before running its `update` or `restore`.
+![Orchestrator flow: you talk only to the coordinator, which sends subagents to gather context, plans and splits the work, has one subagent do each part, has separate subagents check each result, and then reports decisions, results, and open risks to you.](addons/orchestrator/assets/orchestrator-flow.svg)
 
-Review rounds are configurable, members can finish early, and the final answer preserves unresolved disagreements.
+Theme Toggle, Thread Details, and Orchestrator are small interface overlays. Each installs by adding only its own files and one `<script>` entry on top of whatever T3 Code is installed, re-signs with the certificate already protecting the app, and withdraws by removing only what it added, so they work with or without Model Council and in any order. Model Council's own installer restores a whole-application backup, so withdraw the overlays before running its `update` or `restore`.
 
 ## Installing the small overlays
 
 ```sh
-cd addons/theme-toggle   # or addons/thread-details
+cd addons/theme-toggle   # or addons/thread-details, addons/orchestrator
 python3 scripts/install.py check
 python3 scripts/install.py apply   # then quit and reopen T3 Code
 ```
@@ -37,6 +40,7 @@ t3-code-addons/
     model-council/
     theme-toggle/
     thread-details/
+    orchestrator/
       README.md
       addon.json
       src/

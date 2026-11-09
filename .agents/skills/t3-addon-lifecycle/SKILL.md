@@ -19,7 +19,7 @@ Before the first change, atomically write `lifecycle/active.json` under that ext
 
 Every install, addon update, withdrawal, and host replacement must record its exact host identity, addon/source identity where applicable, before/after file inventories, added/changed/removed logical archive entries, recoverable original, verification results, and outcome. Hash file contents and record modes and symlink targets. Record intent durably before replacing application files. Do not represent a retrospective adoption as a complete historical record.
 
-Use each addon's standalone installer. Inspect its actual commands; do not invent a common plugin API. For Model Council, see [references/model-council.md](references/model-council.md). For Theme Toggle and Thread Details, see [references/overlay-addons.md](references/overlay-addons.md); withdraw them before Model Council operations. If an installer cannot meet this contract, improve and test it before installation. Do not bypass a failed hash, version, signature, or compatibility check.
+Use each addon's standalone installer. Inspect its actual commands; do not invent a common plugin API. For Model Council, see [references/model-council.md](references/model-council.md). For Theme Toggle, Thread Details, and Orchestrator, see [references/overlay-addons.md](references/overlay-addons.md); withdraw them before Model Council operations. If an installer cannot meet this contract, improve and test it before installation. Do not bypass a failed hash, version, signature, or compatibility check.
 
 ## Phase 1: withdraw and update official T3
 

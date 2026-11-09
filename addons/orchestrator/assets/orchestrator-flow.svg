@@ -1,75 +1,87 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1100" viewBox="0 0 1000 1100" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 574" role="img" aria-labelledby="title description">
   <title id="title">Orchestrator: a coordinator that delegates, and never does the work itself</title>
   <desc id="description">You talk only to the coordinator, which is the model selected in the chat. The coordinator never edits files or writes code, and keeps its own context small by holding only summaries. It sends several subagents in parallel to gather context, and they return short evidence-based reports. The coordinator plans from the reports and splits the work into independent parts. One subagent does each part. Separate checking subagents then verify each result independently. The coordinator reports decisions, results, and open risks to you. Every subagent uses the default subagent model from the right-click menu, a model you request for a single task, or the agent's choice when no default is set.</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #767676; font-size: 12.5px; }
+    .b { font-weight: 700; font-size: 13px; }
+    .ac { fill: #8467ee; }
+    .box { fill: none; stroke: #858585; stroke-width: 1; }
+    .abox { fill: none; stroke: #8467ee; stroke-width: 1; }
+    .ar { fill: none; stroke: #858585; stroke-width: 1; }
+    .lp { fill: none; stroke: #8467ee; stroke-width: 1; stroke-dasharray: 3 3; }
+    .c { text-anchor: middle; }
+    .e { text-anchor: end; }
+  </style>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="8" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M 0 0 L 10 4 L 0 8 Z" fill="#111"/>
-    </marker>
+    <marker id="ah" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M1.5 1.5 L6 4 L1.5 6.5" fill="none" stroke="#858585" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="ahc" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M1.5 1.5 L6 4 L1.5 6.5" fill="none" stroke="#8467ee" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
   </defs>
-  <rect width="1000" height="1100" fill="#fff"/>
-  <g fill="none" stroke="#111" stroke-width="1.3" stroke-linecap="square" stroke-linejoin="miter">
-    <rect x="310" y="30" width="380" height="60"/>
-    <path d="M500 90 V125" marker-end="url(#arrow)"/>
-    <rect x="210" y="125" width="580" height="100"/>
-    <path d="M500 225 V265" marker-end="url(#arrow)"/>
-    <path d="M500 420 V460" marker-end="url(#arrow)"/>
-    <rect x="310" y="460" width="380" height="70"/>
-    <path d="M500 530 V570" marker-end="url(#arrow)"/>
-    <path d="M500 725 V765" marker-end="url(#arrow)"/>
-    <path d="M500 920 V960" marker-end="url(#arrow)"/>
-    <rect x="310" y="960" width="380" height="80"/>
-    <rect x="60" y="265" width="880" height="155"/>
-    <rect x="90" y="335" width="250" height="65"/>
-    <rect x="375" y="335" width="250" height="65"/>
-    <rect x="660" y="335" width="250" height="65"/>
-    <rect x="60" y="570" width="880" height="155"/>
-    <rect x="90" y="640" width="250" height="65"/>
-    <rect x="375" y="640" width="250" height="65"/>
-    <rect x="660" y="640" width="250" height="65"/>
-    <rect x="60" y="765" width="880" height="155"/>
-    <rect x="90" y="835" width="250" height="65"/>
-    <rect x="375" y="835" width="250" height="65"/>
-    <rect x="660" y="835" width="250" height="65"/>
-  </g>
-  <g fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="19" text-anchor="middle">
-    <text x="500" y="58">You</text>
-    <text x="500" y="80" font-size="17">talk only to the coordinator</text>
-    <text x="500" y="155">Coordinator</text>
-    <text x="500" y="181" font-size="17">The chat's selected model. Never edits files or writes code.</text>
-    <text x="500" y="205" font-size="17">Its context stays small: it keeps summaries only.</text>
-    <text x="515" y="248" font-size="16" text-anchor="start">Sends subagents in parallel</text>
-    <text x="515" y="445" font-size="16" text-anchor="start">Short, evidence-based reports</text>
-    <text x="500" y="488">Coordinator plans</text>
-    <text x="500" y="512" font-size="17">Splits the work into independent parts</text>
-    <text x="515" y="555" font-size="16" text-anchor="start">One subagent per part</text>
-    <text x="515" y="750" font-size="16" text-anchor="start">Results to check</text>
-    <text x="515" y="945" font-size="16" text-anchor="start">Verified results</text>
-    <text x="500" y="988">Report to you</text>
-    <text x="500" y="1014" font-size="17">Decisions, results, and open risks</text>
-    <text x="500" y="293" font-size="19">1. Gather context in parallel</text>
-    <text x="500" y="315" font-size="16">Model: your default, a model you request, or the agent's choice if no default</text>
-    <text x="215" y="360" font-size="18">Subagent A</text>
-    <text x="215" y="382" font-size="16">reads and reports evidence</text>
-    <text x="500" y="360" font-size="18">Subagent B</text>
-    <text x="500" y="382" font-size="16">reads and reports evidence</text>
-    <text x="785" y="360" font-size="18">Subagent C</text>
-    <text x="785" y="382" font-size="16">reads and reports evidence</text>
-    <text x="500" y="598" font-size="19">2. Do the work, one part each</text>
-    <text x="500" y="620" font-size="16">Model: your default, a model you request, or the agent's choice if no default</text>
-    <text x="215" y="665" font-size="18">Worker for part 1</text>
-    <text x="215" y="687" font-size="16">changes only its own part</text>
-    <text x="500" y="665" font-size="18">Worker for part 2</text>
-    <text x="500" y="687" font-size="16">changes only its own part</text>
-    <text x="785" y="665" font-size="18">Worker for part 3</text>
-    <text x="785" y="687" font-size="16">changes only its own part</text>
-    <text x="500" y="793" font-size="19">3. Verify independently</text>
-    <text x="500" y="815" font-size="16">Model: your default, a model you request, or the agent's choice if no default</text>
-    <text x="215" y="860" font-size="18">Checker for part 1</text>
-    <text x="215" y="882" font-size="16">separate from the worker</text>
-    <text x="500" y="860" font-size="18">Checker for part 2</text>
-    <text x="500" y="882" font-size="16">separate from the worker</text>
-    <text x="785" y="860" font-size="18">Checker for part 3</text>
-    <text x="785" y="882" font-size="16">separate from the worker</text>
-  </g>
-  <text x="500" y="1078" text-anchor="middle" fill="#111" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-style="italic">The coordinator directs; subagents do and check the work.</text>
+  <rect class="box" x="212" y="8" width="300" height="28" rx="6"/>
+  <text class="c" x="362" y="27"><tspan class="b">You</tspan><tspan dx="8">talk only to the coordinator</tspan></text>
+  <path class="ar" d="M362 36 V56" marker-end="url(#ah)"/>
+  <rect class="abox" x="156" y="58" width="412" height="58" rx="6"/>
+  <text class="c b ac" x="362" y="77">Coordinator</text>
+  <text class="c" x="362" y="94">The chat's selected model. Never edits files or writes code.</text>
+  <text class="c" x="362" y="110">Its context stays small: it keeps summaries only.</text>
+  <path class="ar" d="M362 116 V136 M222 136 H502"/>
+  <path class="ar" d="M222 136 V154" marker-end="url(#ah)"/>
+  <path class="ar" d="M362 136 V154" marker-end="url(#ah)"/>
+  <path class="ar" d="M502 136 V154" marker-end="url(#ah)"/>
+  <text x="12" y="140">Sends subagents</text>
+  <text class="b" x="12" y="172">1  Gather context</text>
+  <text x="12" y="189">in parallel</text>
+  <rect class="box" x="156" y="154" width="132" height="44" rx="6"/>
+  <text class="c b" x="222" y="172">Subagent A</text>
+  <text class="c" x="222" y="189">gathers evidence</text>
+  <rect class="box" x="296" y="154" width="132" height="44" rx="6"/>
+  <text class="c b" x="362" y="172">Subagent B</text>
+  <text class="c" x="362" y="189">gathers evidence</text>
+  <rect class="box" x="436" y="154" width="132" height="44" rx="6"/>
+  <text class="c b" x="502" y="172">Subagent C</text>
+  <text class="c" x="502" y="189">gathers evidence</text>
+  <path class="ar" d="M222 198 V216 M362 198 V216 M502 198 V216 M222 216 H502"/>
+  <path class="ar" d="M362 216 V236" marker-end="url(#ah)"/>
+  <text x="12" y="222">Short, evidence-based reports</text>
+  <rect class="abox" x="212" y="236" width="300" height="46" rx="6"/>
+  <text class="c b ac" x="362" y="255">Coordinator plans</text>
+  <text class="c" x="362" y="272">Splits the work into independent parts</text>
+  <path class="ar" d="M362 282 V302 M222 302 H502"/>
+  <path class="ar" d="M222 302 V320" marker-end="url(#ah)"/>
+  <path class="ar" d="M362 302 V320" marker-end="url(#ah)"/>
+  <path class="ar" d="M502 302 V320" marker-end="url(#ah)"/>
+  <text x="12" y="306">One subagent per part</text>
+  <text class="b" x="12" y="338">2  Do the work</text>
+  <text x="12" y="355">one part each</text>
+  <rect class="box" x="156" y="320" width="132" height="44" rx="6"/>
+  <text class="c b" x="222" y="338">Worker 1</text>
+  <text class="c" x="222" y="355">does one part</text>
+  <rect class="box" x="296" y="320" width="132" height="44" rx="6"/>
+  <text class="c b" x="362" y="338">Worker 2</text>
+  <text class="c" x="362" y="355">does one part</text>
+  <rect class="box" x="436" y="320" width="132" height="44" rx="6"/>
+  <text class="c b" x="502" y="338">Worker 3</text>
+  <text class="c" x="502" y="355">does one part</text>
+  <path class="ar" d="M222 364 V392" marker-end="url(#ah)"/>
+  <path class="ar" d="M362 364 V392" marker-end="url(#ah)"/>
+  <path class="ar" d="M502 364 V392" marker-end="url(#ah)"/>
+  <text x="12" y="382">Results to check</text>
+  <text class="b" x="12" y="410">3  Verify</text>
+  <text x="12" y="427">independently</text>
+  <rect class="box" x="156" y="392" width="132" height="44" rx="6"/>
+  <text class="c b" x="222" y="410">Checker 1</text>
+  <text class="c" x="222" y="427">separate check</text>
+  <rect class="box" x="296" y="392" width="132" height="44" rx="6"/>
+  <text class="c b" x="362" y="410">Checker 2</text>
+  <text class="c" x="362" y="427">separate check</text>
+  <rect class="box" x="436" y="392" width="132" height="44" rx="6"/>
+  <text class="c b" x="502" y="410">Checker 3</text>
+  <text class="c" x="502" y="427">separate check</text>
+  <path class="ar" d="M222 436 V454 M362 436 V454 M502 436 V454 M222 454 H502"/>
+  <path class="ar" d="M362 454 V474" marker-end="url(#ah)"/>
+  <text x="12" y="460">Verified results</text>
+  <rect class="abox" x="212" y="474" width="300" height="46" rx="6"/>
+  <text class="c b ac" x="362" y="493">Report to you</text>
+  <text class="c" x="362" y="510">Decisions, results, and open risks</text>
+  <text class="c" x="362" y="545">Every subagent uses your default model, a model you request,</text>
+  <text class="c" x="362" y="562">or the agent's choice if no default is set.</text>
 </svg>

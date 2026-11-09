@@ -64,7 +64,7 @@ Updates are not guaranteed to be automatic. The goal is to keep adaptation limit
 - Keep dependencies, bytecode, local environment files, databases, logs, and credentials out of version control. Ignoring a private file is not a substitute for keeping private state outside this project.
 - Before preparing the project for Git or sharing, inspect all remaining files, including hidden files, for personal data and secrets. Report findings without exposing secret values.
 
-## Overlay addons (Theme Toggle, Thread Details)
+## Overlay addons (Theme Toggle, Thread Details, Orchestrator)
 
 Small interface addons that only add files and one `<script>` entry to the installed app follow these rules. The details of lifecycle ordering are in `.agents/skills/t3-addon-lifecycle/references/overlay-addons.md`.
 
