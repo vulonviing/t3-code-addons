@@ -4,6 +4,10 @@ A T3 Adds addon that puts a small light/dark switch next to T3's header buttons.
 
 This folder contains the source, manifest, tests, and installation tools. It works independently of every other addon and does not require a T3 source checkout.
 
+![The Theme Toggle light/dark switch sitting beside T3's three header buttons, shown in two stacked header crops: light mode selected above, dark mode selected below](assets/theme-toggle.png)
+
+*Rendered from the addon's own code inside a mock T3 header with sample data; the header buttons are stand-ins for T3's own.*
+
 ## Requirements
 
 - macOS with **T3 Code Beta 0.1.7**, source commit **`322f6544dfad`**.

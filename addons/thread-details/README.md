@@ -7,6 +7,10 @@ A T3 Adds addon that attaches a companion card directly under T3's own thread-de
 
 This folder contains the source, manifest, tests, and installation tools. It works independently of every other addon and does not require a T3 source checkout.
 
+![Thread Details companion card under T3's thread-details card, with "This chat" showing tokens per model and "Plan left" showing remaining limit bars and reset times, both expanded, in the dark theme](assets/thread-details.png)
+
+*Rendered from the addon's own code with fabricated sample data; the upper card is a stand-in for T3's own.*
+
 ## Requirements
 
 - macOS with **T3 Code Beta 0.1.7**, source commit **`322f6544dfad`**.
