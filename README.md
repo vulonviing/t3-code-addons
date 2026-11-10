@@ -14,7 +14,7 @@ Review rounds are configurable, members can finish early, and the final answer p
 
 - **[Theme Toggle](addons/theme-toggle/README.md)** — A light/dark switch next to T3's header buttons.
 - **[Thread Details](addons/thread-details/README.md)** — A companion card under T3's own thread-details card: this chat's tokens per model with hover details, and what is left of each provider's subscription limits.
-- **[Orchestrator](addons/orchestrator/README.md)** — A composer button that turns the chat's agent into a coordinator that only delegates to subagents, with a right-click menu for the default subagent model.
+- **[Orchestrator](addons/orchestrator/README.md)** — A composer button that turns the chat's agent into a coordinator that only delegates to subagents, with frugal delegation rules (small agent budgets, one reused subagent per role, short replies, review in proportion to risk) and a right-click menu for the default subagent model and subagent effort. Version 0.2.
 
 ![Orchestrator flow: you talk only to the coordinator, which sends subagents to gather context, plans and splits the work, has one reused builder subagent handle each area, has a reviewer check the diff, and then reports decisions, results, and open risks to you.](addons/orchestrator/assets/orchestrator-flow.svg)
 
