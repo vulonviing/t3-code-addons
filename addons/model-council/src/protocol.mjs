@@ -10,6 +10,12 @@ export function routeRef(location) {
     ? { environmentId: parts[0], threadId: parts[1] } : null;
 }
 
+export function draftRef(location) {
+  const path = location.hash?.startsWith('#/') ? location.hash.slice(1) : location.pathname;
+  const parts = path.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent);
+  return parts.length === 2 && parts[0] === 'draft' ? { draftId: parts[1] } : null;
+}
+
 export function historicalItem(entry) {
   const item = entry.item ?? entry;
   let text;

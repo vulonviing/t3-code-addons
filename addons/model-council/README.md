@@ -61,11 +61,11 @@ If setup stops at a system authorization prompt, complete or cancel that prompt 
 
 ## Use
 
-1. Open an existing chat and click **Model Council** next to the attachment button inside the composer.
+1. Open an existing chat, or a new-chat screen, and click **Model Council** next to the attachment button inside the composer.
 2. Enter a question. Expand **Add models**, select models from the provider lists, and click **Add**. Selected models appear as separate cards under **Council members**.
 3. Choose each member's thinking or reasoning level in its card, where supported. **Default** leaves that setting to T3/the provider.
 4. Set **Maximum rounds** to a whole number of at least 2 (default: 2). The independent opinion counts as round 1; the final answer is separate.
-5. Click **Start council**.
+5. Click **Start council**. On a new-chat screen the question is prefilled from the composer text, and Start first turns the draft into a real chat (a model must be chosen in the composer); the final answer then becomes that chat's first message, and there is no earlier history to share. The new-chat flow was tested only in a mock page; see Context and limitations.
 6. Inspect independent opinions and peer reviews in the council card, or open each member's native T3 chat.
 
 Each member gives an independent opinion, then reviews the initial opinions and the latest earlier position of every member. All participating models receive the same frozen packet for a round. Member effort settings are preserved across rounds. The limit is a maximum, not a required number of turns: for example, a limit of 5 can finish at round 3. The model currently selected in the main chat produces the final answer using its existing model and effort settings.
@@ -147,6 +147,10 @@ Do not commit or share local receipts, application backups, test-server profiles
 
 ## Context and limitations
 
+The draft flow was exercised only in a mock page with a fake host, not in a real T3 window. Unverified: the redirect after the draft is finalized, the server's reaction to the thread creation (including an assumed deduplication of a repeated command ID on retry), whether the model picker stores the chosen model in the composer draft (otherwise "Pick a model first." appears), and the mobile composer footer. If starting fails after the chat was created, an error says so and you press Start again in the new chat.
+
+New-chat support relies on T3's internal draft store (`getDraftSession`, `getComposerDraft`, `markDraftThreadPromoting`, `finalizePromotedDraftThread`), a contract pinned by the sha256 of the exact host file, not a public API. The promoted chat is not prepared as a new worktree.
+
 The starting conversation selection is frozen once and shared by all members. Its default budget is 16,000 UTF-8 bytes, prioritizing the original request and recent exchanges. Members receive a source-thread reference for retrieving omitted history. Attachments and private reasoning are not copied. Contributions above 24,000 bytes are shortened explicitly; the full output remains in the native member chat.
 
 All round responses remain in the local council record and member chats. Final-answer context contains the original opinions, latest reviews, and completion metadata to keep its size bounded regardless of the round limit; earlier reviews can be retrieved from member chats. There is no fixed upper limit beyond a safe integer, so large values can consume substantial model usage if members keep discussing.
@@ -176,7 +180,7 @@ Previous live checks verified the native T3 UI/RPC path and final context delive
 
 ## T3 0.1.7 adaptation
 
-Addon 0.3.3 targets official T3 0.1.7 / `322f6544dfad`. The host adapter uses the verified atom registry, thread detail/shell, provider configuration, scope, orchestration, and transcript exports from this exact application build. The native multi-model sender starts separate background threads; it does not replace Council's peer-review rounds and final synthesis.
+Addon 0.4.0 targets official T3 0.1.7 / `322f6544dfad`. The host adapter uses the verified atom registry, thread detail/shell, provider configuration, scope, orchestration, and transcript exports from this exact application build. New-chat support was verified only against the real client's exports and in a mock page, not in a real window. The native multi-model sender starts separate background threads; it does not replace Council's peer-review rounds and final synthesis.
 
 Reasoning controls also honor T3 0.1.7's explicit `role: "reasoning"` descriptor, including provider-specific option IDs, while preserving existing choices and excluding prompt-only levels.
 

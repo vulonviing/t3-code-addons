@@ -1,6 +1,6 @@
 {
   "name": "@t3-adds/model-council",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Independent model opinions, peer review, and one final answer inside T3 Code.",

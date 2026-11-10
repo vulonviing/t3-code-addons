@@ -1,10 +1,21 @@
 import { host } from './host-v017.mjs';
-import { makeJob, routeRef, selectContext, roundLimit } from './protocol.mjs';
+import { makeJob, routeRef, draftRef, selectContext, roundLimit } from './protocol.mjs';
 import { CouncilController } from './controller.mjs';
+import { createPromoter, afterPromotion } from './draft.mjs';
 import { createStorage } from './storage.mjs';
 import { reasoningControls, setReasoningChoice, selectedReasoningLabel } from './effort.mjs';
 
 const storage = createStorage(indexedDB);
+const promote = createPromoter({ host });
+// A chat route gives the chat; a new-chat draft gives its future chat plus the draft id.
+function locate() {
+  const chat = routeRef(window.location);
+  if (chat) return chat;
+  const draftRoute = draftRef(window.location);
+  const session = draftRoute && host.draft.session(draftRoute.draftId);
+  return session ? { environmentId: session.environmentId, threadId: session.threadId, projectId: session.projectId, draftId: draftRoute.draftId } : null;
+}
+const draftModel = (ref) => { const c = host.draft.composer(ref.draftId); return c?.modelSelectionByProvider?.[c?.activeProvider]?.model; };
 const mount = document.createElement('div');
 mount.id = 't3-adds-model-council';
 const root = mount.attachShadow({ mode: 'open' });
@@ -89,8 +100,8 @@ async function runWithLock(job, newRequest = false) {
 }
 
 function updateLaunch() {
-  const ref = routeRef(window.location);
-  const parent = ref && host.parent(ref);
+  const ref = locate();
+  const parent = ref && (ref.draftId ? ref : host.parent(ref));
   const composerFooter = [...document.querySelectorAll('[data-chat-composer-form="true"] [data-chat-composer-footer="true"]')]
     .find((node) => node.getClientRects().length > 0);
   if (parent && composerFooter) {
@@ -149,11 +160,11 @@ function renderJobs() {
 function render() {
   if (!currentRef) return;
   main.replaceChildren(); footer.replaceChildren();
-  const parent = host.parent(currentRef);
+  const parent = currentRef.draftId ? null : host.parent(currentRef);
   const intro = el('div', undefined, { class: 'intro' });
   intro.append(el('p', 'Independent perspectives, thoughtful discussion, one final answer.', { class: 'muted' }));
   const finalModel = el('p', 'Final answer by', { class: 'final-model muted' });
-  finalModel.append(el('span', parent?.modelSelection?.model ?? '—'));
+  finalModel.append(el('span', (currentRef.draftId ? draftModel(currentRef) : parent?.modelSelection?.model) ?? '—'));
   intro.append(finalModel); main.append(intro);
   if (uiError) main.append(el('p', uiError, { class: 'error', role: 'alert' }));
   const label = el('label', 'Ask the council', { class: 'question-field' });
@@ -238,26 +249,41 @@ function render() {
     try {
       const maxRounds = roundLimit(Number(maxRoundsDraft));
       if (!navigator.locks) throw new Error('Web Locks support is required.');
-      const ref = { ...currentRef }, parent = host.parent(ref);
-      if (!parent || ['preparing', 'queued', 'starting', 'running', 'waiting'].includes(parent.status)) throw new Error('Wait for the current chat turn to finish before starting a council.');
-      const context = selectContext(await host.transcript(ref));
+      const wasDraft = Boolean(currentRef.draftId);
       const members = [...selections.values()].map((member) => {
         const model = providers.find((p) => p.instanceId === member.selection.instanceId)?.models.find((m) => m.slug === member.selection.model);
         const effort = selectedReasoningLabel(model, member.selection);
         return { ...member, label: member.label + (effort ? ` · ${effort}` : '') };
       });
-      const job = makeJob({ ref, parent, question: draft, members, context, maxRounds });
-      await controller.persist(job);
+      const prepare = async () => {
+        const ref = { environmentId: currentRef.environmentId, threadId: currentRef.threadId }, parent = host.parent(ref);
+        if (!parent || ['preparing', 'queued', 'starting', 'running', 'waiting'].includes(parent.status)) throw new Error('Wait for the current chat turn to finish before starting a council.');
+        // A draft has no history yet: the question is the user's idea.
+        const context = selectContext(wasDraft ? { threadId: ref.threadId, items: [] } : await host.transcript(ref));
+        return makeJob({ ref, parent, question: draft, members, context, maxRounds });
+      };
+      let job;
+      if (wasDraft) {
+        // Validate everything that does not need the real chat before creating it.
+        makeJob({ ref: currentRef, parent: { modelSelection: {} }, question: draft, members, context: { text: '' }, maxRounds });
+        const promoted = await promote(currentRef.draftId);
+        currentRef = { ...promoted, projectId: currentRef.projectId };
+        job = await afterPromotion(async () => { const made = await prepare(); await controller.persist(made); return made; });
+      } else {
+        job = await prepare();
+        await controller.persist(job);
+      }
       draft = ''; void runWithLock(job, true).catch((e) => { uiError = e.message; render(); });
     } catch (e) { uiError = e.message; }
-    finally { loading = false; render(); }
+    finally { loading = false; render(); updateLaunch(); }
   };
   footer.append(count, start);
 }
 
 launch.onclick = async () => {
-  currentRef = routeRef(window.location);
-  if (!currentRef || !host.parent(currentRef)) return;
+  currentRef = locate();
+  if (!currentRef || (!currentRef.draftId && !host.parent(currentRef))) return;
+  if (currentRef.draftId && !draft.trim()) draft = (host.draft.composer(currentRef.draftId)?.prompt ?? '').trim();
   try { jobs = await storage.all(); uiError = null; }
   catch (error) { uiError = error.message; }
   render(); dialog.showModal(); renderJobs();

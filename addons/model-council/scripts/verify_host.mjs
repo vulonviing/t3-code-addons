@@ -62,6 +62,18 @@ try {
     check(host.projection(ref) === projection, 'Projection');
     check(host.canOperate(ref), 'Scope grant');
     check(host.providers(ref).length === 1 && host.providers(ref)[0] === enabled, 'Provider overrides');
+    const { A: draftStore } = await import('/assets/utils-BL51zcsk.js');
+    const actions = draftStore.getState();
+    for (const name of ['getDraftSession', 'getComposerDraft', 'markDraftThreadPromoting', 'finalizePromotedDraftThread']) check(typeof actions[name] === 'function', `Draft store exposes ${name}`);
+    for (const name of ['session', 'composer', 'markPromoting', 'finalize']) check(typeof host.draft[name] === 'function', `Host draft exposes ${name}`);
+    check(typeof host.observeParent === 'function', 'Host exposes observeParent');
+    const unknown = { environmentId: 'none', threadId: 'none' };
+    let absent = null;
+    const stopUnknown = host.observeParent(unknown, (parent) => { absent = parent; });
+    check(typeof stopUnknown === 'function', 'observeParent returns an unsubscribe function');
+    check(absent === null, 'Unknown thread observes as absent');
+    stopUnknown();
+    check(host.draft.session('none') === null && host.draft.composer('none') === null, 'Unknown draft reads as absent');
     let observed = false, stopped = false;
     registry.subscribe = (atom, listener, options) => {
       check(atom === details.threadAtom(ref) && options.immediate, 'Observation contract');

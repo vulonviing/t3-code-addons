@@ -105,3 +105,11 @@ test('legacy saved reviews migrate without losing their response or command ID',
   assert.equal(job.members[0].reviews[0].response.text, 'Saved review');
   assert.equal(job.members[0].reviews[0].messageId, job.members[0].reviewMessageId);
 });
+
+test('draftRef reads new-chat draft routes only', async () => {
+  const { draftRef } = await import('../src/protocol.mjs');
+  assert.deepEqual(draftRef({ pathname: '/draft/abc' }), { draftId: 'abc' });
+  assert.deepEqual(draftRef({ hash: '#/draft/abc?x=1', pathname: '/' }), { draftId: 'abc' });
+  assert.equal(draftRef({ pathname: '/env/thread' }), null);
+  assert.equal(routeRef({ pathname: '/draft/abc' }), null);
+});
