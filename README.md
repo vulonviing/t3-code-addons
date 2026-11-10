@@ -13,7 +13,17 @@ Unofficial, version-specific extensions; not affiliated with T3 Tools.
 Review rounds are configurable, members can finish early, and the final answer preserves unresolved disagreements.
 
 - **[Theme Toggle](addons/theme-toggle/README.md)** — A light/dark switch next to T3's header buttons.
+
+![The Theme Toggle light/dark switch sitting beside T3's three header buttons, shown in two stacked header crops: light mode selected above, dark mode selected below](addons/theme-toggle/assets/theme-toggle.png)
+
+*Rendered from the addon's own code inside a mock T3 header with sample data; the header buttons are stand-ins for T3's own.*
+
 - **[Thread Details](addons/thread-details/README.md)** — A companion card under T3's own thread-details card: this chat's tokens per model with hover details, and what is left of each provider's subscription limits.
+
+![Thread Details companion card under T3's thread-details card, with "This chat" showing tokens per model and "Plan left" showing remaining limit bars and reset times, both expanded, in the dark theme](addons/thread-details/assets/thread-details.png)
+
+*Rendered from the addon's own code with fabricated sample data; the upper card is a stand-in for T3's own.*
+
 - **[Orchestrator](addons/orchestrator/README.md)** — A composer button that turns the chat's agent into a coordinator that only delegates to subagents, with frugal delegation rules (small agent budgets, one reused subagent per role, short replies, review in proportion to risk) and a right-click menu for the default subagent model and subagent effort. Version 0.2.
 
 ![Orchestrator flow: you talk only to the coordinator, which sends subagents to gather context, plans and splits the work, has one reused builder subagent handle each area, has a reviewer check the diff, and then reports decisions, results, and open risks to you.](addons/orchestrator/assets/orchestrator-flow.svg)
