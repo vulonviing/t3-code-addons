@@ -60,3 +60,20 @@ Exact menu styling, the rules wording within the listed points, and how to detec
 ## Not exercised until installed
 
 Real-window behavior, and whether a given model follows the rules over a long chat, cannot be proven by tests. The README must say what was and was not run.
+
+## v0.2: frugal delegation
+
+Observed: one task opened about 15 subagents, several on the largest model, and used about 30% of a usage limit. Causes were the rules (parallel scouts, one subagent per part, a separate checker per result), subagents inheriting the chat model when the native tool got no model, and every subagent starting cold.
+
+Changes, all in the rules text plus one menu section:
+
+- Agent budget: small 1, medium 2-3, large at most 5, never more than 3 at once; ask before going over.
+- Reuse: one subagent per role (scout, builder per area, ops for all git/test/build, reviewer) kept alive with follow-up messages; the native tool is preferred because it can be continued.
+- Replies: `DONE` / `NEEDS_INPUT` / `BLOCKED` plus at most 5 lines; briefs carry goal, file paths, and done condition only.
+- Review in proportion to risk; the reviewer reads only the diff; at most 2 fix-and-review rounds.
+- The coordinator may run tiny read-only checks itself and shows its plan before medium and large work.
+- No largest-tier model unless asked; the model is named on every call (an omitted model inherits the chat's); no default means a mid-tier model; Claude defaults pass the native alias (`sonnet`, `haiku`).
+- Effort: **By task** (default), **Low**, or **Medium** from the right-click menu, stored globally like the default model.
+- `scripts/measure_session.py` reports spawns by model and tokens for before/after comparison.
+
+Still instructions, not a sandbox. Not exercised: a real window and long-chat adherence.

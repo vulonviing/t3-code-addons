@@ -1,4 +1,5 @@
 const PREFIX = 't3-adds:orchestrator:';
+const EFFORTS = new Set(['task', 'low', 'medium']);
 const chatKey = (ref) => `${PREFIX}chat:${ref.environmentId}:${ref.threadId}`;
 
 export function createState(storage) {
@@ -22,5 +23,10 @@ export function createState(storage) {
       return value && value.instanceId && value.slug ? value : null;
     },
     setDefaultModel(model) { write(`${PREFIX}model`, model); },
+    effort() {
+      const value = read(`${PREFIX}effort`);
+      return EFFORTS.has(value) ? value : 'task';
+    },
+    setEffort(value) { write(`${PREFIX}effort`, EFFORTS.has(value) ? value : null); },
   };
 }

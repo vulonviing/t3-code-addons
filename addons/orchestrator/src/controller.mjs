@@ -38,20 +38,27 @@ export function createController({ host, state, newId = () => crypto.randomUUID(
         await send(ref, endText());
         state.setEnabled(ref, false);
       } else {
-        const messageId = await send(ref, activationText(resolveDefault(ref)));
+        const messageId = await send(ref, activationText(resolveDefault(ref), state.effort()));
         state.setEnabled(ref, true, messageId);
       }
     },
     async remind(ref) {
       if (!state.activation(ref).enabled) return;
       requireOperate(ref);
-      await send(ref, reminderText(resolveDefault(ref)));
+      await send(ref, reminderText(resolveDefault(ref), state.effort()));
+    },
+    effort: () => state.effort(),
+    async setEffort(ref, value) {
+      state.setEffort(value);
+      if (!state.activation(ref).enabled) return;
+      requireOperate(ref);
+      await send(ref, updateText(resolveDefault(ref), state.effort()));
     },
     async setDefaultModel(ref, model) {
       state.setDefaultModel(model);
       if (!state.activation(ref).enabled) return;
       requireOperate(ref);
-      await send(ref, updateText(resolveDefault(ref)));
+      await send(ref, updateText(resolveDefault(ref), state.effort()));
     },
   };
 }

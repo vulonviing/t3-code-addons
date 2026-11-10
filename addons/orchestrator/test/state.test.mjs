@@ -42,3 +42,17 @@ test('corrupt stored JSON reads as off and no default', () => {
   assert.equal(state.activation(a).enabled, false);
   assert.equal(state.defaultModel(), null);
 });
+
+test('effort defaults to by-task, persists, and rejects unknown values', () => {
+  const storage = memory();
+  const state = createState(storage);
+  assert.equal(state.effort(), 'task');
+  state.setEffort('low');
+  assert.equal(state.effort(), 'low');
+  assert.equal(createState(storage).effort(), 'low');
+  state.setEffort('turbo');
+  assert.equal(state.effort(), 'task');
+  const blocked = createState(broken);
+  blocked.setEffort('medium');
+  assert.equal(blocked.effort(), 'medium');
+});

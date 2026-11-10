@@ -65,8 +65,11 @@ if (!document.getElementById(ID)) {
       menu.append(b);
     };
     heading('Default subagent model');
-    item('No default (let the agent choose)', !active, () => controller.setDefaultModel(ref, null));
+    item('No default (mid-tier model)', !active, () => controller.setDefaultModel(ref, null));
     for (const option of options) item(option.label, active?.instanceId === option.instanceId && active.slug === option.slug, () => controller.setDefaultModel(ref, option));
+    menu.append(document.createElement('hr'));
+    heading('Subagent effort');
+    for (const [value, label] of [['task', 'By task (recommended)'], ['low', 'Low'], ['medium', 'Medium']]) item(label, controller.effort() === value, () => controller.setEffort(ref, value));
     menu.append(document.createElement('hr'));
     item('Remind now', null, () => controller.remind(ref), controller.status(ref) === 'off');
     menu.hidden = false;

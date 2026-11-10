@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 574" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 592" role="img" aria-labelledby="title description">
   <title id="title">Orchestrator: a coordinator that delegates, and never does the work itself</title>
-  <desc id="description">You talk only to the coordinator, which is the model selected in the chat. The coordinator never edits files or writes code, and keeps its own context small by holding only summaries. It sends several subagents in parallel to gather context, and they return short evidence-based reports. The coordinator plans from the reports and splits the work into independent parts. One subagent does each part. Separate checking subagents then verify each result independently. The coordinator reports decisions, results, and open risks to you. Every subagent uses the default subagent model from the right-click menu, a model you request for a single task, or the agent's choice when no default is set.</desc>
+  <desc id="description">You talk only to the coordinator, which is the model selected in the chat. The coordinator never edits files or writes code, and keeps its own context small by holding only short replies. It sends up to three scouts in parallel to find context; each answers DONE with at most five lines of evidence. The coordinator plans from the replies and splits the work into areas. One reused builder subagent handles each area. A reviewer then checks the whole diff, with a separate review for risky parts. The coordinator reports decisions, results, and open risks to you. Subagents are reused and run at most three at a time, use the default subagent model from the right-click menu or a model you request, fall back to a mid-tier model, and never use the largest tier unless you ask.</desc>
   <style>
     text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #767676; font-size: 12.5px; }
     .b { font-weight: 700; font-size: 13px; }
@@ -27,21 +27,21 @@
   <path class="ar" d="M222 136 V154" marker-end="url(#ah)"/>
   <path class="ar" d="M362 136 V154" marker-end="url(#ah)"/>
   <path class="ar" d="M502 136 V154" marker-end="url(#ah)"/>
-  <text x="12" y="140">Sends subagents</text>
+  <text x="12" y="140">Sends scouts (up to 3)</text>
   <text class="b" x="12" y="172">1  Gather context</text>
   <text x="12" y="189">in parallel</text>
   <rect class="box" x="156" y="154" width="132" height="44" rx="6"/>
-  <text class="c b" x="222" y="172">Subagent A</text>
-  <text class="c" x="222" y="189">gathers evidence</text>
+  <text class="c b" x="222" y="172">Scout A</text>
+  <text class="c" x="222" y="189">finds context</text>
   <rect class="box" x="296" y="154" width="132" height="44" rx="6"/>
-  <text class="c b" x="362" y="172">Subagent B</text>
-  <text class="c" x="362" y="189">gathers evidence</text>
+  <text class="c b" x="362" y="172">Scout B</text>
+  <text class="c" x="362" y="189">finds context</text>
   <rect class="box" x="436" y="154" width="132" height="44" rx="6"/>
-  <text class="c b" x="502" y="172">Subagent C</text>
-  <text class="c" x="502" y="189">gathers evidence</text>
+  <text class="c b" x="502" y="172">Scout C</text>
+  <text class="c" x="502" y="189">finds context</text>
   <path class="ar" d="M222 198 V216 M362 198 V216 M502 198 V216 M222 216 H502"/>
   <path class="ar" d="M362 216 V236" marker-end="url(#ah)"/>
-  <text x="12" y="222">Short, evidence-based reports</text>
+  <text x="12" y="222">DONE + 5 lines with evidence</text>
   <rect class="abox" x="212" y="236" width="300" height="46" rx="6"/>
   <text class="c b ac" x="362" y="255">Coordinator plans</text>
   <text class="c" x="362" y="272">Splits the work into independent parts</text>
@@ -49,39 +49,32 @@
   <path class="ar" d="M222 302 V320" marker-end="url(#ah)"/>
   <path class="ar" d="M362 302 V320" marker-end="url(#ah)"/>
   <path class="ar" d="M502 302 V320" marker-end="url(#ah)"/>
-  <text x="12" y="306">One subagent per part</text>
+  <text x="12" y="306">One builder per area</text>
   <text class="b" x="12" y="338">2  Do the work</text>
-  <text x="12" y="355">one part each</text>
+  <text x="12" y="355">reuse, don't respawn</text>
   <rect class="box" x="156" y="320" width="132" height="44" rx="6"/>
-  <text class="c b" x="222" y="338">Worker 1</text>
-  <text class="c" x="222" y="355">does one part</text>
+  <text class="c b" x="222" y="338">Builder 1</text>
+  <text class="c" x="222" y="355">one area</text>
   <rect class="box" x="296" y="320" width="132" height="44" rx="6"/>
-  <text class="c b" x="362" y="338">Worker 2</text>
-  <text class="c" x="362" y="355">does one part</text>
+  <text class="c b" x="362" y="338">Builder 2</text>
+  <text class="c" x="362" y="355">one area</text>
   <rect class="box" x="436" y="320" width="132" height="44" rx="6"/>
-  <text class="c b" x="502" y="338">Worker 3</text>
-  <text class="c" x="502" y="355">does one part</text>
-  <path class="ar" d="M222 364 V392" marker-end="url(#ah)"/>
-  <path class="ar" d="M362 364 V392" marker-end="url(#ah)"/>
-  <path class="ar" d="M502 364 V392" marker-end="url(#ah)"/>
-  <text x="12" y="382">Results to check</text>
-  <text class="b" x="12" y="410">3  Verify</text>
-  <text x="12" y="427">independently</text>
-  <rect class="box" x="156" y="392" width="132" height="44" rx="6"/>
-  <text class="c b" x="222" y="410">Checker 1</text>
-  <text class="c" x="222" y="427">separate check</text>
+  <text class="c b" x="502" y="338">Builder 3</text>
+  <text class="c" x="502" y="355">one area</text>
+  <path class="ar" d="M222 364 V382 M362 364 V382 M502 364 V382 M222 382 H502"/>
+  <path class="ar" d="M362 382 V392" marker-end="url(#ah)"/>
+  <text x="12" y="378">The diff</text>
+  <text class="b" x="12" y="410">3  Review</text>
+  <text x="12" y="427">in proportion to risk</text>
   <rect class="box" x="296" y="392" width="132" height="44" rx="6"/>
-  <text class="c b" x="362" y="410">Checker 2</text>
-  <text class="c" x="362" y="427">separate check</text>
-  <rect class="box" x="436" y="392" width="132" height="44" rx="6"/>
-  <text class="c b" x="502" y="410">Checker 3</text>
-  <text class="c" x="502" y="427">separate check</text>
-  <path class="ar" d="M222 436 V454 M362 436 V454 M502 436 V454 M222 454 H502"/>
-  <path class="ar" d="M362 454 V474" marker-end="url(#ah)"/>
-  <text x="12" y="460">Verified results</text>
+  <text class="c b" x="362" y="410">Reviewer</text>
+  <text class="c" x="362" y="427">one review of the diff</text>
+  <path class="ar" d="M362 436 V474" marker-end="url(#ah)"/>
+  <text x="12" y="460">Reviewed result</text>
   <rect class="abox" x="212" y="474" width="300" height="46" rx="6"/>
   <text class="c b ac" x="362" y="493">Report to you</text>
   <text class="c" x="362" y="510">Decisions, results, and open risks</text>
-  <text class="c" x="362" y="545">Every subagent uses your default model, a model you request,</text>
-  <text class="c" x="362" y="562">or the agent's choice if no default is set.</text>
+  <text class="c" x="362" y="545">Subagents are reused and run at most 3 at a time.</text>
+  <text class="c" x="362" y="562">Model: your default or one you request; mid-tier otherwise.</text>
+  <text class="c" x="362" y="579">Never the largest tier unless you ask.</text>
 </svg>

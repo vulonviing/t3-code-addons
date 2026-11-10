@@ -76,3 +76,22 @@ test('an unavailable stored default resolves to null and is left out of the rule
   await controller.toggle(ref);
   assert.ok(!commands[0].text.includes('gpt-x'));
 });
+
+test('setEffort stores the choice and posts one update only while on', async () => {
+  const { commands, controller, state } = setup();
+  await controller.setEffort(ref, 'low');
+  assert.equal(state.effort(), 'low');
+  assert.equal(commands.length, 0);
+  await controller.toggle(ref);
+  await controller.setEffort(ref, 'medium');
+  assert.equal(commands.length, 2);
+  assert.match(commands[1].text, /medium/);
+  assert.equal(controller.effort(), 'medium');
+});
+
+test('activation uses the stored effort', async () => {
+  const { commands, controller } = setup();
+  await controller.setEffort(ref, 'low');
+  await controller.toggle(ref);
+  assert.match(commands[0].text, /use low for every subagent/);
+});
