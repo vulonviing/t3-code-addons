@@ -1,6 +1,6 @@
 {
   "name": "@t3-adds/orchestrator",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Coordinator mode for the T3 Code chat agent.",

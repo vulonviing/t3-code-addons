@@ -95,3 +95,22 @@ test('activation uses the stored effort', async () => {
   await controller.toggle(ref);
   assert.match(commands[0].text, /use low for every subagent/);
 });
+
+test('toggle on a draft promotes first, then sends the rules as the first turn of the real chat', async () => {
+  const { commands, state, controller: base, fake } = setup();
+  const order = [];
+  const controller = createController({ host: { ...fake, async command(r, c) { order.push(c.type); return fake.command(r, c); } }, state, newId: () => 'id1',
+    promote: async (draftId) => { order.push(`promote:${draftId}`); return ref; } });
+  await controller.toggle({ ...ref, draftId: 'd1' });
+  assert.deepEqual(order, ['promote:d1', 'message.dispatch']);
+  assert.equal(state.activation(ref).enabled, true);
+  assert.equal(commands.length, 1);
+});
+
+test('a failed promotion sends nothing and leaves the chat off', async () => {
+  const { commands, state, fake } = setup();
+  const controller = createController({ host: fake, state, promote: async () => { throw new Error('Pick a model first.'); } });
+  await assert.rejects(controller.toggle({ ...ref, draftId: 'd1' }), /Pick a model first/);
+  assert.equal(commands.length, 0);
+  assert.equal(state.activation(ref).enabled, false);
+});

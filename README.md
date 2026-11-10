@@ -24,7 +24,7 @@ Review rounds are configurable, members can finish early, and the final answer p
 
 *Rendered from the addon's own code with fabricated sample data; the upper card is a stand-in for T3's own.*
 
-- **[Orchestrator](addons/orchestrator/README.md)** — A composer button that turns the chat's agent into a coordinator that only delegates to subagents, with frugal delegation rules (small agent budgets, one reused subagent per role, short replies, review in proportion to risk) and a right-click menu for the default subagent model and subagent effort. Version 0.2.
+- **[Orchestrator](addons/orchestrator/README.md)** — A composer button that turns the chat's agent into a coordinator that only delegates to subagents, with frugal delegation rules (small agent budgets, one reused subagent per role, short replies, review in proportion to risk) and a right-click menu for the default subagent model and subagent effort. Version 0.3. Also works on the new-chat screen.
 
 ![Orchestrator flow: you talk only to the coordinator, which sends subagents to gather context, plans and splits the work, has one reused builder subagent handle each area, has a reviewer check the diff, and then reports decisions, results, and open risks to you.](addons/orchestrator/assets/orchestrator-flow.svg)
 

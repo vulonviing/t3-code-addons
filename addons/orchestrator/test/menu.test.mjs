@@ -19,3 +19,12 @@ test('routeRef reads chat routes from path or hash and ignores other pages', () 
   assert.equal(routeRef({ pathname: '/settings/general' }), null);
   assert.equal(routeRef({ pathname: '/' }), null);
 });
+
+test('draftRef reads new-chat draft routes only', async () => {
+  const { draftRef } = await import('../src/menu.mjs');
+  assert.deepEqual(draftRef({ pathname: '/draft/abc' }), { draftId: 'abc' });
+  assert.deepEqual(draftRef({ hash: '#/draft/abc?x=1', pathname: '/' }), { draftId: 'abc' });
+  assert.equal(draftRef({ pathname: '/env1/th1' }), null);
+  assert.equal(draftRef({ pathname: '/draft' }), null);
+  assert.equal(routeRef({ pathname: '/draft/abc' }), null);
+});

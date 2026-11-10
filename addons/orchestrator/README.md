@@ -31,6 +31,7 @@ If the installed application is already signed by a T3 Adds local certificate (f
 ## Use
 
 - The **Orchestrator** button sits in the composer next to **Model Council**. It is off by default in every chat.
+- The button also appears on T3's new-chat screen. Clicking it there first turns the draft into a real chat (it needs a model chosen in the composer), then sends the rules as that chat's first turn; you send your own message afterwards. This flow was tested only in a mock page (see Limitations). The right-click options work on the draft too.
 - Click it to turn it on. It shows **Starting…** until T3 accepts the rules, then turns green. If the chat is busy, the rules are queued behind the current work. Click again to end coordinator mode.
 - Right-click (or press the context-menu key) for options:
   - **Default subagent model**: the model subagents use unless told otherwise. **No default** means a mid-tier model.
@@ -49,6 +50,8 @@ The on/off state per chat, the default model, and the effort are kept in the bro
 
 - The rules are instructions, not a sandbox. T3's permissions remain authoritative, and an agent that ignores the rules can still change files. The button turning green means the rules were delivered, not that they are enforced.
 - In very long chats the rules can fade. Use **Remind now**. Automatic per-message reminders would need hooking T3's composer, which this addon does not do.
+- The draft flow was exercised only in a mock page with a fake host, not in a real T3 window. Unverified: the redirect after the draft is finalized, the server's reaction to the thread creation (including an assumed deduplication of a repeated command ID on retry), whether the model picker stores the chosen model in the composer draft (otherwise "Pick a model first." appears), and the mobile composer footer. Text typed in the composer before the click is not touched: T3's own promotion code moves the whole composer draft, prompt included, to the new chat's composer (verified in the 0.1.7 client code, not in a running window). If the new chat is not ready within 15 seconds the click reports it; click the button again in the new chat.
+- On a new-chat draft the click creates the chat immediately, so it needs a model chosen first, and the rules cost an extra model turn before your first message. The draft is not prepared as a new worktree. This uses T3's internal draft store (`getDraftSession`, `markDraftThreadPromoting`, `finalizePromotedDraftThread`), a contract pinned by the sha256 of the exact host file, not a public API.
 - The rule messages are visible in the chat and use the chat's normal turn, so they use a little model usage.
 - The agent budget (3 at once, 5 per task), reuse, reply format, and the Opus ban are instructions too, so a model can overstep them. Effort is passed on only where the subagent tool supports it.
 - Models you pick must be enabled in T3. A saved default that is no longer available is ignored.

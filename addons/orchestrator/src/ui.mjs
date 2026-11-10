@@ -1,7 +1,7 @@
 import { host } from './host-v017.mjs';
 import { createState } from './state.mjs';
 import { createController } from './controller.mjs';
-import { modelOptions, routeRef } from './menu.mjs';
+import { modelOptions, routeRef, draftRef } from './menu.mjs';
 
 const ID = 't3-adds-orchestrator';
 if (!document.getElementById(ID)) {
@@ -36,7 +36,8 @@ if (!document.getElementById(ID)) {
 
   let current = null;
   const showError = (error) => { note.textContent = error.message; note.hidden = false; setTimeout(() => { note.hidden = true; }, 6000); };
-  const run = (work) => work().catch(showError).finally(render);
+  // Re-attach afterwards: promoting a draft changes the route before the chat data may be present.
+  const run = (work) => work().catch(showError).finally(() => { render(); schedule(); });
 
   function render() {
     const ref = current;
@@ -77,7 +78,12 @@ if (!document.getElementById(ID)) {
     menu.style.top = `${Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8))}px`;
     menu.querySelector('button:not(:disabled)')?.focus();
   }
-  launch.addEventListener('click', () => run(() => controller.toggle(current)));
+  let clicking = false;
+  launch.addEventListener('click', () => {
+    if (clicking || !current) return;
+    clicking = true;
+    run(() => controller.toggle(current)).finally(() => { clicking = false; });
+  });
   launch.addEventListener('contextmenu', (event) => { event.preventDefault(); const r = launch.getBoundingClientRect(); openMenu(r.left, r.top - 8 - (menu.offsetHeight || 0)); });
   launch.addEventListener('keydown', (event) => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const r = launch.getBoundingClientRect(); openMenu(r.left, r.top - 8); } });
   menu.addEventListener('keydown', (event) => {
@@ -89,15 +95,24 @@ if (!document.getElementById(ID)) {
   document.addEventListener('pointerdown', (event) => { if (!event.composedPath().includes(mount)) closeMenu(); });
   window.addEventListener('blur', closeMenu);
 
+  const locate = () => {
+    const chat = routeRef(window.location);
+    if (chat) return chat;
+    const draft = draftRef(window.location);
+    const session = draft && host.draft.session(draft.draftId);
+    return session ? { environmentId: session.environmentId, threadId: session.threadId, projectId: session.projectId, draftId: draft.draftId } : null;
+  };
+  const keyOf = (ref) => ref && `${ref.environmentId}/${ref.threadId}/${ref.draftId ?? ''}`;
   let unobserve = null, observedKey = null;
   function attach() {
-    const ref = routeRef(window.location);
-    const key = ref && `${ref.environmentId}/${ref.threadId}`;
-    current = ref && host.parent(ref) ? ref : null;
+    const ref = locate();
+    const key = keyOf(ref);
+    current = ref && (ref.draftId || host.parent(ref)) ? ref : null;
     if (key !== observedKey) {
       unobserve?.(); unobserve = null; observedKey = key; closeMenu();
       // Redraw only when this chat's data changes.
-      if (current) unobserve = host.observe(current, render);
+      // A draft has no chat data to observe yet.
+      if (current && !current.draftId) unobserve = host.observe(current, render);
     }
     const footer = [...document.querySelectorAll('[data-chat-composer-form="true"] [data-chat-composer-footer="true"]')].find((n) => n.getClientRects().length > 0);
     if (current && footer) {
@@ -109,8 +124,8 @@ if (!document.getElementById(ID)) {
   }
   let queued = false;
   const settled = () => {
-    const ref = routeRef(window.location);
-    return mount.isConnected && ref && observedKey === `${ref.environmentId}/${ref.threadId}` && mount.parentElement.getClientRects().length > 0;
+    const ref = locate();
+    return mount.isConnected && ref && observedKey === keyOf(ref) && mount.parentElement.getClientRects().length > 0;
   };
   const schedule = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; attach(); }); };
   window.addEventListener('popstate', schedule);

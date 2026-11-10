@@ -1,9 +1,10 @@
+import { createPromoter } from './draft.mjs';
 import { activationText, updateText, reminderText, endText } from './rules.mjs';
 
 const BUSY = new Set(['preparing', 'queued', 'starting', 'running', 'waiting']);
 const creation = { createdBy: 'user', creationSource: 'web' };
 
-export function createController({ host, state, newId = () => crypto.randomUUID() }) {
+export function createController({ host, state, newId = () => crypto.randomUUID(), promote = createPromoter({ host }) }) {
   const resolveDefault = (ref) => {
     const model = state.defaultModel();
     if (!model) return null;
@@ -32,8 +33,10 @@ export function createController({ host, state, newId = () => crypto.randomUUID(
       if (!enabled) return 'off';
       return host.projection(ref)?.runs.some((run) => run.userMessageId === messageId) ? 'on' : 'starting';
     },
-    async toggle(ref) {
-      requireOperate(ref);
+    async toggle(target) {
+      requireOperate(target);
+      // On a new-chat draft the first click turns the draft into a real chat; its ids do not change.
+      const ref = target.draftId ? await promote(target.draftId) : target;
       if (state.activation(ref).enabled) {
         await send(ref, endText());
         state.setEnabled(ref, false);
