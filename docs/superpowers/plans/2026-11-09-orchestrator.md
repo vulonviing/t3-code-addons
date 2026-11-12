@@ -134,6 +134,6 @@
 - [ ] **Step 1:** Write the README: purpose, requirements, install/update/remove commands (same as Theme Toggle's), use (toggle, right-click menu, per-task override in plain words, Remind now), how it works (rules delivered as a chat message; T3's own subagent tools), limitations (soft rules, not a sandbox; long chats can dilute the rules; no per-message reminder; state is per browser profile; the activation message is visible in the chat), compatibility, validation done and not done.
 - [ ] **Step 2:** Run `npm test` in `addons/orchestrator`. Expected: all node and Python tests pass.
 - [ ] **Step 3:** Run `python3 -I scripts/install.py check`. Expected: compatible.
-- [ ] **Step 4:** Search the addon for personal data: `grep -rIn "/Users/\|@gmail" addons/orchestrator docs` returns nothing.
+- [ ] **Step 4:** Inspect the addon and documentation for personal paths, account identities, and credentials; report any findings without exposing their values.
 - [ ] **Step 5:** Stop. Installing into the real app (`apply`) needs the user's go-ahead (AGENTS.md); report what was tested and what was not exercised in a real window.
 - [ ] **Step 6:** Commit the addon, spec, and plan together only if the user asks for a commit.

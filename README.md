@@ -28,12 +28,18 @@ Review rounds are configurable, members can finish early, and the final answer p
 
 ![Orchestrator flow: you talk only to the coordinator, which sends subagents to gather context, plans and splits the work, has one reused builder subagent handle each area, has a reviewer check the diff, and then reports decisions, results, and open risks to you.](addons/orchestrator/assets/orchestrator-flow.svg)
 
-Theme Toggle, Thread Details, and Orchestrator are small interface overlays. Each installs by adding only its own files and one `<script>` entry on top of whatever T3 Code is installed, re-signs with the certificate already protecting the app, and withdraws by removing only what it added, so they work with or without Model Council and in any order. Model Council's own installer restores a whole-application backup, so withdraw the overlays before running its `update` or `restore`.
+- **[Codex Dictation](addons/codex-dictation/README.md)** — A microphone beside the composer addon buttons that streams speech directly into the message draft. Click again to stop, then send normally. Includes startup speech buffering, clear connection states, and a waveform that responds to your voice. Uses Codex's ChatGPT sign-in and a journaled local negotiation helper; no API key is used.
+
+![Codex Dictation: click the microphone, keep early speech in an in-memory buffer while connecting, see words appear in the T3 draft, and send the message yourself.](addons/codex-dictation/assets/dictation-flow.svg)
+
+*Illustrated with synthetic text. Dictation fills the draft; sending remains a separate user action. Online voice usage can consume account allowances. Token savings and battery-life improvements have not been measured.*
+
+Theme Toggle, Thread Details, Orchestrator, and Codex Dictation use small interface overlays. Each overlay adds only its own files and one `<script>` entry on top of the installed T3 Code, re-signs with the certificate already protecting the app, and withdraws only its own entries. Codex Dictation additionally installs its independent, journaled loopback helper. The overlays work with or without Model Council and in any order. Model Council's own installer restores a whole-application backup, so withdraw the overlays before running its `update` or `restore`.
 
 ## Installing the small overlays
 
 ```sh
-cd addons/theme-toggle   # or addons/thread-details, addons/orchestrator
+cd addons/theme-toggle   # or addons/thread-details, addons/orchestrator, addons/codex-dictation
 python3 scripts/install.py check
 python3 scripts/install.py apply   # then quit and reopen T3 Code
 ```
@@ -51,6 +57,7 @@ t3-code-addons/
     theme-toggle/
     thread-details/
     orchestrator/
+    codex-dictation/
       README.md
       addon.json
       src/

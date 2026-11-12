@@ -1,0 +1,12 @@
+{
+  "name": "@t3-adds/codex-dictation",
+  "version": "0.3.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs && python3 scripts/test_bridge.py && python3 scripts/test_service.py && python3 scripts/test_asar.py && python3 scripts/test_installer.py",
+    "check": "python3 scripts/install.py check",
+    "apply": "python3 scripts/install.py apply",
+    "remove": "python3 scripts/install.py remove"
+  }
+}

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title description">
+  <title id="title">Codex Dictation: speak into your T3 draft</title>
+  <desc id="description">Click the microphone, buffer early speech while connecting, see a live transcript, and stop. Sending is always a separate user action. This is an illustration with synthetic text.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#171c24"/><stop offset="1" stop-color="#101318"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#79e0be"/><stop offset="1" stop-color="#80baff"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="m1 1 4 3-4 3" fill="none" stroke="#657181" stroke-width="1.5"/></marker>
+    <g id="microphone" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0 0 12 0v-2M12 18v3M9 21h6"/>
+    </g>
+    <style>
+      text{font-family:Arial,Helvetica,sans-serif} .heading{fill:#f3f6fb;font-weight:700}.body{fill:#bec8d5;font-size:15px}.muted{fill:#8c99aa;font-size:13px}.step{fill:#9eacbd;font-size:12px;font-weight:700;letter-spacing:1.5px}.card{fill:#1c222c;stroke:#343e4c}.pill{fill:#151b22;stroke:#3c4859}
+    </style>
+  </defs>
+  <rect width="1200" height="680" rx="24" fill="url(#background)"/>
+  <rect x="48" y="42" width="38" height="5" rx="2.5" fill="url(#accent)"/>
+  <text x="100" y="49" class="step">T3 CODE ADDONS</text>
+  <text x="48" y="108" class="heading" font-size="38">Speak. Review. Send when ready.</text>
+  <text x="48" y="141" class="body" font-size="17">Codex Dictation brings your ChatGPT sign-in to a microphone beside the T3 composer.</text>
+  <g>
+    <rect x="48" y="180" width="240" height="286" rx="18" class="card"/>
+    <text x="70" y="213" class="step">01 / START</text>
+    <rect x="70" y="241" width="196" height="74" rx="13" fill="#151a22" stroke="#343e4c"/>
+    <text x="84" y="269" class="muted">Composer controls</text>
+    <rect x="84" y="279" width="49" height="23" rx="6" fill="#29323f"/>
+    <rect x="141" y="279" width="49" height="23" rx="6" fill="#29323f"/>
+    <rect x="203" y="268" width="46" height="36" rx="11" fill="#284c42" stroke="#79e0be"/>
+    <use href="#microphone" x="214" y="274" color="#a3f0d4"/>
+    <text x="70" y="356" class="heading" font-size="21">One click to speak</text>
+    <text x="70" y="385" class="body">Your existing prompt stays.</text>
+    <text x="70" y="410" class="body">No separate transcript panel.</text>
+    <text x="70" y="442" class="muted">Works in new chats, too.</text>
+  </g>
+  <path d="M296 323h29" fill="none" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="336" y="180" width="240" height="286" rx="18" class="card"/>
+    <text x="358" y="213" class="step">02 / CONNECT</text>
+    <rect x="358" y="251" width="196" height="51" rx="13" fill="#302b20" stroke="#78613c"/>
+    <circle cx="382" cy="276" r="8" fill="none" stroke="#746346" stroke-width="2"/>
+    <path d="M382 268a8 8 0 0 1 8 8" fill="none" stroke="#efc47b" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="401" y="282" fill="#efc47b" font-size="16">Connecting</text>
+    <text x="358" y="356" class="heading" font-size="21">Keep the first words</text>
+    <text x="358" y="385" class="body">Early speech waits in RAM</text>
+    <text x="358" y="410" class="body">until the service is ready.</text>
+    <text x="358" y="442" class="muted">Microphone access is required.</text>
+  </g>
+  <path d="M584 323h29" fill="none" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="624" y="180" width="240" height="286" rx="18" class="card"/>
+    <text x="646" y="213" class="step">03 / DICTATE</text>
+    <rect x="646" y="238" width="196" height="80" rx="12" fill="#141a21" stroke="#40584f"/>
+    <text x="660" y="266" fill="#e0e8f1" font-size="14">Write a short summary.</text>
+    <rect x="816" y="252" width="2" height="18" fill="#79e0be"/>
+    <g fill="#79e0be">
+      <rect x="662" y="292" width="3" height="8" rx="1.5"/><rect x="668" y="288" width="3" height="16" rx="1.5"/><rect x="674" y="285" width="3" height="22" rx="1.5"/><rect x="680" y="290" width="3" height="12" rx="1.5"/><rect x="686" y="293" width="3" height="6" rx="1.5"/>
+    </g>
+    <text x="703" y="300" fill="#a3e7ce" font-size="12">Listening</text>
+    <text x="646" y="356" class="heading" font-size="21">Words flow into T3</text>
+    <text x="646" y="385" class="body">Review the live message draft.</text>
+    <text x="646" y="410" class="body">The wave follows your voice.</text>
+    <text x="646" y="442" class="muted">The message is still unsent.</text>
+  </g>
+  <path d="M872 323h29" fill="none" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="912" y="180" width="240" height="286" rx="18" class="card"/>
+    <text x="934" y="213" class="step">04 / STOP + REVIEW</text>
+    <rect x="934" y="251" width="196" height="51" rx="13" fill="#151b22" stroke="#3c4859"/>
+    <use href="#microphone" x="948" y="264" color="#c3cddd"/>
+    <path d="M985 276h43" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <rect x="1045" y="261" width="70" height="31" rx="9" fill="#dfe9f4"/>
+    <text x="1062" y="282" fill="#17212c" font-size="14" font-weight="700">Send</text>
+    <text x="934" y="356" class="heading" font-size="21">You decide to send</text>
+    <text x="934" y="385" class="body">Click again to stop the mic.</text>
+    <text x="934" y="410" class="body">Finish with Send or Enter.</text>
+    <text x="934" y="442" class="muted">No automatic chat message.</text>
+  </g>
+  <rect x="48" y="494" width="1104" height="105" rx="16" fill="#151b23" stroke="#303c4b"/>
+  <text x="70" y="524" class="step">UNDER THE HOOD</text>
+  <text x="70" y="556" fill="#d5dfec" font-size="17">Microphone + RAM buffer</text>
+  <path d="M296 551h50" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="367" y="556" fill="#d5dfec" font-size="17">OpenAI voice via WebRTC</text>
+  <path d="M596 551h50" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="667" y="556" fill="#d5dfec" font-size="17">User transcript</text>
+  <path d="M811 551h50" stroke="#657181" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="882" y="556" fill="#a3f0d4" font-size="17">Editable T3 draft</text>
+  <text x="70" y="581" class="muted">The local helper negotiates through Codex. Audio goes directly to OpenAI; no API key is used.</text>
+  <text x="48" y="637" class="muted">Experimental, version-specific addon. Online voice can consume account allowances.</text>
+  <text x="1152" y="637" text-anchor="end" class="muted">Illustration with synthetic text</text>
+</svg>
