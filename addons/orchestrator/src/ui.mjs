@@ -1,10 +1,28 @@
-import { host } from './host-v017.mjs';
 import { createState } from './state.mjs';
 import { createController } from './controller.mjs';
 import { modelOptions, routeRef, draftRef } from './menu.mjs';
 
 const ID = 't3-adds-orchestrator';
-if (!document.getElementById(ID)) {
+// The generated adapter is loaded dynamically so that a host module that fails to load becomes a message, not silence.
+let host = null, loadError = '';
+try { ({ host } = await import('./host.mjs')); } catch (error) { loadError = `The T3 integration failed to load (${error.message}).`; }
+
+// When this T3 release cannot be attached to, say so once per load in a small dismissible note. No timers or observers.
+function showUnsupported(reason) {
+  const mount = document.createElement('div');
+  mount.id = ID;
+  const root = mount.attachShadow({ mode: 'open' });
+  root.innerHTML = `<style>
+    .note{position:fixed;right:12px;bottom:12px;z-index:2147483000;max-width:min(320px,calc(100vw - 24px));padding:8px 30px 8px 10px;border:1px solid #8885;border-radius:9px;background:var(--background,#18181b);color:var(--foreground,#ddd);font:12px/1.4 system-ui,sans-serif;box-shadow:0 4px 18px #0003;overflow-wrap:anywhere}
+    p{margin:0}button{position:absolute;top:4px;right:4px;width:20px;height:20px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;font:16px/1 system-ui;opacity:.7;cursor:pointer}button:hover{opacity:1}button:focus-visible{outline:2px solid #9b8cff}
+  </style><div class="note" role="status"><p></p><button type="button" aria-label="Dismiss message" title="Dismiss">\u00d7</button></div>`;
+  root.querySelector('p').textContent = `Orchestrator could not attach. ${reason}`;
+  root.querySelector('button').onclick = () => mount.remove();
+  document.body.append(mount);
+}
+const unsupported = loadError || (() => { try { return host.unsupported?.() ?? ''; } catch (error) { return `The T3 integration failed to load (${error.message}).`; } })();
+if (unsupported && !document.getElementById(ID)) showUnsupported(unsupported);
+if (!unsupported && !document.getElementById(ID)) {
   const state = createState((() => { try { return window.localStorage; } catch { return { getItem() { throw new Error('storage'); }, setItem() {}, removeItem() {} }; } })());
   const controller = createController({ host, state });
   const mount = document.createElement('span');

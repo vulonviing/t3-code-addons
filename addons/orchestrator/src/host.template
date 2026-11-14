@@ -1,9 +1,22 @@
-// These exports are pinned by the installer to the exact installed bundle hashes.
-import { al as registry, A as draftStore } from '../utils-BL51zcsk.js';
-import { v as orchestration } from '../queries-0E2-XBJB.js';
-import { rt as details, it as shells } from '../projectGrouping-aRBPi9Ux.js';
-import { ut as server } from '../themePalette-owjsZZI0.js';
-import { r as hasScope } from '../session-D2SVRPH0.js';
+// Host adapter template. The installer discovers the T3 client modules by how the client uses them and renders this
+// file as host.mjs; nothing here is pinned to a T3 release. A module that was not found is absent from `modules`.
+@@IMPORTS@@
+const modules = @@BINDINGS@@;
+const MISSING = @@MISSING@@;
+const { registry, draftStore, orchestration, details, shells, server, hasScope } = modules;
+
+const fn = (value) => typeof value === 'function';
+// Empty when every piece this addon needs is present; otherwise one plain sentence for the user.
+function unsupportedReason() {
+  if (MISSING.length) return `Could not find in this T3 release: ${MISSING.join(', ')}.`;
+  const broken = [];
+  if (!fn(registry?.get) || !fn(registry?.subscribe)) broken.push('the atom registry');
+  if (!['getDraftSession', 'getComposerDraft', 'markDraftThreadPromoting', 'finalizePromotedDraftThread'].every((n) => fn(draftStore?.getState?.()?.[n]))) broken.push('the new-chat draft store');
+  if (!fn(orchestration?.v2?.dispatchCommand?.run)) broken.push('the command client');
+  if (!fn(details?.threadAtom) || !fn(shells?.threadShellAtom) || !fn(server?.configValueAtom)) broken.push('the chat atoms');
+  if (!fn(hasScope)) broken.push('the permission check');
+  return broken.length ? `This T3 release changed ${broken.join(', ')}.` : '';
+}
 
 function unwrap(result) {
   if (result._tag === 'Success') return result.value;
@@ -11,6 +24,7 @@ function unwrap(result) {
 }
 
 export const host = {
+  unsupported: unsupportedReason,
   parent(ref) {
     if (!ref) return null;
     const thread = registry.get(shells.threadShellAtom(ref));

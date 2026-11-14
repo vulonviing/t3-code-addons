@@ -12,11 +12,11 @@ Subagents use the default subagent model from the right-click menu, a model you 
 
 ## Requirements
 
-- macOS with **T3 Code Beta 0.1.7**, source commit **`322f6544dfad`**.
+- macOS with **T3 Code Beta**. Verified on 0.1.7 (`322f6544dfad`) and 0.1.9 (`24e77473ecf4`); these versions are informational and are not enforced.
 - Python 3 and the macOS `ditto`, `codesign`, and `security` commands for installation.
 - Node.js 20+ for the tests.
 
-This is a local application modification, not an official T3 plugin API. The installer checks the exact build and the hashes of the host files it imports, and refuses unsupported builds.
+This is a local application modification, not an official T3 plugin API. There is no T3 version or commit gate and no pinned chunk name or hash. At install time `scripts/discover.py` finds each client module the addon imports (atom registry, draft store, command client, chat and server atoms, permission check) by how the rest of the client uses it, and renders the host adapter `host.mjs` from `src/host.template`. The discovered names are recorded in the install receipt. If something cannot be found, the install still proceeds (the overlay only adds files) and `check` prints a warning; at runtime the addon then shows one small dismissible note saying what it could not attach to, instead of the button. No timers or observers run in that case. No Codex, Claude Code, or Open Code version is checked either.
 
 ## Install
 
@@ -50,8 +50,9 @@ The on/off state per chat, the default model, and the effort are kept in the bro
 
 - The rules are instructions, not a sandbox. T3's permissions remain authoritative, and an agent that ignores the rules can still change files. The button turning green means the rules were delivered, not that they are enforced.
 - In very long chats the rules can fade. Use **Remind now**. Automatic per-message reminders would need hooking T3's composer, which this addon does not do.
+- Discovery was verified against synthetic fixtures of the 0.1.7 and 0.1.9 layouts, a failure case, and the real extracted 0.1.7 and 0.1.9 clients (the discovered names match the previously pinned 0.1.7 ones). `scripts/verify_host.mjs` (needs `playwright-core`) was not run in this change, and the runtime note was not exercised in a real window.
 - The draft flow was exercised only in a mock page with a fake host, not in a real T3 window. Unverified: the redirect after the draft is finalized, the server's reaction to the thread creation (including an assumed deduplication of a repeated command ID on retry), whether the model picker stores the chosen model in the composer draft (otherwise "Pick a model first." appears), and the mobile composer footer. Text typed in the composer before the click is not touched: T3's own promotion code moves the whole composer draft, prompt included, to the new chat's composer (verified in the 0.1.7 client code, not in a running window). If the new chat is not ready within 15 seconds the click reports it; click the button again in the new chat.
-- On a new-chat draft the click creates the chat immediately, so it needs a model chosen first, and the rules cost an extra model turn before your first message. The draft is not prepared as a new worktree. This uses T3's internal draft store (`getDraftSession`, `markDraftThreadPromoting`, `finalizePromotedDraftThread`), a contract pinned by the sha256 of the exact host file, not a public API.
+- On a new-chat draft the click creates the chat immediately, so it needs a model chosen first, and the rules cost an extra model turn before your first message. The draft is not prepared as a new worktree. This uses T3's internal draft store (`getDraftSession`, `markDraftThreadPromoting`, `finalizePromotedDraftThread`), a contract found by signature at install time, not a public API.
 - The rule messages are visible in the chat and use the chat's normal turn, so they use a little model usage.
 - The agent budget (3 at once, 5 per task), reuse, reply format, and the Opus ban are instructions too, so a model can overstep them. Effort is passed on only where the subagent tool supports it.
 - Models you pick must be enabled in T3. A saved default that is no longer available is ignored.

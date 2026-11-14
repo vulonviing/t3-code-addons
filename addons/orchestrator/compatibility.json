@@ -1,7 +1,10 @@
 {
-  "apps/server/dist/client/assets/utils-BL51zcsk.js": "754363c6f1283ee814cdf1dae8dbc6f13d66810ba2b6373b17c6b4c10076e099",
-  "apps/server/dist/client/assets/queries-0E2-XBJB.js": "47a3ecb2fbad6321a5e37ec15ce12b87d877c1be893ef3c0cfe5f4522d28f63c",
-  "apps/server/dist/client/assets/projectGrouping-aRBPi9Ux.js": "23ae53de4ed269aaa91a3e3c43b02f8b2858020d8308c7cd83521c36763fa994",
-  "apps/server/dist/client/assets/themePalette-owjsZZI0.js": "0419486ea48e2bb5d9001863ff249f9030c69527ed3173952bcd49850c93cc0c",
-  "apps/server/dist/client/assets/session-D2SVRPH0.js": "de401738bc442ab47597ae5027093eda6404993355c0f71817b9f05838961d29"
+  "verifiedHosts": ["0.1.7", "0.1.9"],
+  "pinnedFiles": {},
+  "versionGate": "none",
+  "discovery": {
+    "client": "scripts/discover.py finds each client module this addon imports by how the client uses it (for example `X.threadShellAtom(`) and follows the import chain to the chunk export that provides it. Chunk names and export aliases are rendered into host.mjs from src/host.template at install time and recorded in the install receipt, never pinned.",
+    "modules": ["registry", "draftStore", "orchestration", "details", "shells", "server", "hasScope"],
+    "onFailure": "The install still proceeds because the overlay only adds files; the addon shows a dismissible note at runtime saying what could not be found."
+  }
 }

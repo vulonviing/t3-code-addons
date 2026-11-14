@@ -19,6 +19,7 @@ sys.dont_write_bytecode = True
 from asar import Archive, digest
 from lifecycle import Transaction, changes, inventory, write_json
 import signing
+from discover import discover as discover_assets, render_adapter
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = json.loads((ROOT / 'addon.json').read_text())
@@ -51,15 +52,31 @@ def identity(app):
 
 
 def verify_host(app):
+    """No T3 version or commit gate. The client is probed by signature; see discover()."""
     archive = Archive(Path(app) / 'Contents/Resources/app.asar')
-    package = json.loads(archive.read('package.json'))
-    compatible = ADDON['compatibility']
-    if package['version'] != compatible['version'] or package.get('t3codeCommitHash') != compatible['commit']:
-        raise ValueError(f"Unsupported T3 build: {package['version']} / {package.get('t3codeCommitHash')}")
-    for path, expected in json.loads((ROOT / 'compatibility.json').read_text()).items():
-        if digest(archive.read(path)) != expected:
-            raise ValueError(f'Changed or unsupported integration file: {path}')
+    archive.read('package.json')
+    archive.read(ENTRY)
     return archive
+
+
+def discover(archive):
+    """Find the client modules this addon imports by how the client uses them. Never refuses.
+
+    A module that cannot be found is listed in `missing`; the generated adapter then reports it at runtime in a
+    dismissible note instead of attaching, which cannot harm the application.
+    """
+    client = PREFIX + 'assets/'
+    assets = {}
+
+    def walk(node, prefix=''):
+        for name, value in node.get('files', {}).items():
+            if 'files' in value:
+                walk(value, prefix + name + '/')
+            elif prefix == client and name.endswith('.js') and 'link' not in value and not value.get('unpacked'):
+                assets[name] = archive.read(prefix + name)
+
+    walk(archive.header)
+    return discover_assets(assets)
 
 
 def entries(app):
@@ -85,13 +102,15 @@ def entries(app):
     return result
 
 
-def sources():
-    return {ASSETS + path.name: path.read_bytes() for path in sorted((ROOT / 'src').glob('*.mjs'))}
+def sources(found):
+    files = {ASSETS + path.name: path.read_bytes() for path in sorted((ROOT / 'src').glob('*.mjs'))}
+    files[ASSETS + 'host.mjs'] = render_adapter(found).encode()
+    return files
 
 
 def source_record():
     paths = [ROOT / name for name in ('addon.json', 'compatibility.json')]
-    paths += sorted((ROOT / 'src').glob('*.mjs'))
+    paths += sorted((ROOT / 'src').glob('*.mjs')) + [ROOT / 'src/host.template']
     paths += sorted(path for path in (ROOT / 'scripts').iterdir() if path.suffix in ('.py', '.mjs'))
     return {str(path.relative_to(ROOT)): digest(path.read_bytes()) for path in paths}
 
@@ -127,11 +146,11 @@ def plan(archive, mode, receipt):
             raise ValueError('Addon already present in the installed application. Check, update, or remove it first.')
         if index.count('</body>') != 1:
             raise ValueError('Unsupported client index: body anchor is not unique.')
-        return {ENTRY: index.replace('</body>', INSERT + '</body>').encode(), **sources()}, []
+        return {ENTRY: index.replace('</body>', INSERT + '</body>').encode(), **sources(discover(archive))}, []
     index = check_owned(archive, receipt)
     if mode == 'remove':
         return {ENTRY: index.replace(receipt['insert'], '', 1).encode()}, sorted(receipt['ownedEntries'])
-    replacements = sources()
+    replacements = sources(discover(archive))
     if receipt['insert'] != INSERT:
         replacements[ENTRY] = index.replace(receipt['insert'], INSERT, 1).encode()
     return replacements, sorted(set(receipt['ownedEntries']) - set(replacements))
@@ -233,8 +252,13 @@ def execute(args, app):
             checked_receipt(app)
             print(f'{ADDON["name"]} installed; entry, files, signature, and receipt verified.')
         else:
-            verify_host(app)
-            print(f'Compatible T3 installation verified; {ADDON["name"]} is not installed.')
+            found = discover(verify_host(app))
+            print(f'T3 installation verified; {ADDON["name"]} is not installed.')
+            if found['missing']:
+                print('Warning: could not find in this T3 release: ' + ', '.join(found['missing'])
+                      + '. An install would still be safe; the addon would show a dismissible note instead of attaching.')
+            else:
+                print('All T3 client modules this addon uses were found by signature.')
         return
     if args.action == 'forget':
         if not RECEIPT.exists():
@@ -264,7 +288,9 @@ def execute(args, app):
         if mode != 'remove':
             next_receipt = dict(schemaVersion=3, kind='overlay', app=str(app), addon=ADDON, host=host,
                                 sources=source_record(), insert=INSERT,
-                                ownedEntries={path: digest(data) for path, data in sources().items()},
+                                hostDiscovery=discover(Archive(app / 'Contents/Resources/app.asar')),
+                                ownedEntries={path: digest(data) for path, data in replacements.items()
+                                              if path.startswith(ASSETS)},
                                 installedAsarHash=digest((staged / 'Contents/Resources/app.asar').read_bytes()),
                                 signing=signature,
                                 verification={'hostCompatibility': 'passed', 'preparedSignature': 'passed',

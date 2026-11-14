@@ -1,11 +1,11 @@
 {
   "name": "@t3-adds/orchestrator",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Coordinator mode for the T3 Code chat agent.",
   "scripts": {
-    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_installer.py && python3 scripts/test_measure_session.py",
+    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_discover.py && python3 scripts/test_installer.py && python3 scripts/test_measure_session.py",
     "setup-signing": "python3 scripts/install.py setup-signing",
     "check": "python3 scripts/install.py check",
     "apply": "python3 scripts/install.py apply",
