@@ -30,29 +30,17 @@ Do not create empty files merely to match this layout.
 
 ## Upstream updates
 
-Use the repository skill `.agents/skills/t3-addon-lifecycle/SKILL.md` for addon installation, withdrawal, and official T3 update coordination. AI evaluates feature necessity and compatibility; verified standalone installers perform application changes. This workflow does not add a runtime dependency to addons.
-
-Every application mutation must have a durable external record before replacement: host and addon/source identity, recoverable originals, before/after file hashes, permission modes and symlink targets, added/changed/removed logical archive entries, and verification results. Record completion afterward. Legacy adoption must disclose missing historical evidence. Unfinished operations must be reconciled before another operation starts.
-
-Before an official update, withdraw recorded addon changes and verify the official application. After updating, reassess each addon: superseded, compatible, adaptation required, or uncertain. Reinstall only verified compatible addons; report adaptations or uncertainty to the user before proceeding unless that development is already authorized. Do not silently lose addon-specific behavior, overwrite unexpected changes, or downgrade a host that may have migrated user data.
-
-1. Identify the installed T3 version or commit and applied addons. Preserve existing work.
-2. Inspect the target official release and verify each addon's integration points.
-3. Apply compatible addons reproducibly. Repeating an operation must not duplicate code, records, or model turns.
-4. Never silently skip an incompatible patch or guess a new insertion point. Report and fix compatibility at the addon level.
-5. Run appropriate checks and any necessary build before recording compatibility with a new release.
-
-Updates are not guaranteed to be automatic. The goal is to keep adaptation limited to small integration points while preserving feature code.
+Update T3 with `python3 .agents/skills/t3-addon-lifecycle/scripts/update_all.py` (see `.agents/skills/t3-addon-lifecycle/SKILL.md`). It unplugs every addon, updates T3, plugs the addons back in, runs each `check`, prints which attached, and restarts T3 once. Compatibility means "does the addon attach?": no version pins, no reassessment ceremony. A failed addon is retried once, then reported with the exact next command and left withdrawn; the others stay attached. When everything attached, the result is privacy-scanned, committed on `update-<date>`, and pushed (`scripts/publish.py`). Nothing is final until every addon's own `check` passes. Do not change a version string just to make an addon pass. CLI updates (Codex, Claude Code, Open Code) never involve addons.
 
 ## Installation and verification
 
 - Distinguish official T3 files, addon source, generated output, and machine-local state.
-- Installation tools must check the target version and required files, and reject unsupported states with a clear error.
-- Preserve a recoverable original application before replacing it. Verify the prepared application's integrity before installation.
-- Removal must undo only the addon's changes and must not overwrite unrelated work or an intervening official update.
-- Run checks relevant to the change. State what was tested and what remains unverified.
-- Do not claim external loading support unless it has been verified. Explain when an addon requires a modified application build.
-- Preserve applicable upstream license and copyright notices when copying or distributing T3-derived material.
+- Keep a recoverable copy of the original app before replacing it, and verify the prepared app before installing. Never downgrade T3 automatically.
+- Removal undoes only the addon's own changes and must not overwrite unrelated work or an official update.
+- Repeating an operation must not duplicate code, records, or model turns.
+- Run checks relevant to the change and say what was and was not tested.
+- Do not claim external loading support unless verified; addons need a modified app build.
+- Preserve upstream license and copyright notices when copying T3-derived material.
 
 ## Language and privacy
 
@@ -64,16 +52,13 @@ Updates are not guaranteed to be automatic. The goal is to keep adaptation limit
 - Keep dependencies, bytecode, local environment files, databases, logs, and credentials out of version control. Ignoring a private file is not a substitute for keeping private state outside this project.
 - Before preparing the project for Git or sharing, inspect all remaining files, including hidden files, for personal data and secrets. Report findings without exposing secret values.
 
-## Overlay addons (Theme Toggle, Thread Details, Orchestrator)
+## Overlay addons (Theme Toggle, Thread Details, Orchestrator, Codex Dictation)
 
-Small interface addons that only add files and one `<script>` entry to the installed app follow these rules. The details of lifecycle ordering are in `.agents/skills/t3-addon-lifecycle/references/overlay-addons.md`.
+Small interface addons that add files and one `<script>` entry to the installed app. Use each addon's own `scripts/install.py` (`check`, `apply`, `update`, `remove`, `recover`, `forget`); they are independent of each other and of Model Council. Details: `.agents/skills/t3-addon-lifecycle/references/overlay-addons.md`.
 
-- Install with the addon's own `scripts/install.py` (`check`, `apply`, `update`, `remove`, `recover`, `forget`). Overlays re-sign with the certificate already pinned in the installed app and remove only what they added. They are independent of each other and of Model Council, in any order.
-- Model Council's `update` and `restore` refuse while overlays are installed. Withdraw every overlay with its own `remove` first, run the Model Council operation, then reinstall the overlays.
-- Pin every host file an addon imports by sha256 in `compatibility.json`. Never guess a new hashed chunk name after a T3 update; extract the new client, re-verify the exports, and update the adapter and hashes.
-- Never insert elements into DOM that T3's React components own, and never patch T3's functions. Attach beside T3's elements and read their position instead. A foreign node inside T3's measured containers can break T3's own layout logic.
-- Keep idle cost near zero: no polling, no work while the UI the addon belongs to is closed or the window is in the background, repaint only when data changed, and use browser events (Navigation API, resize and mutation observers on the one element needed) instead of timers.
-- Develop against a mock page, not the installed app: serve the extracted official client assets from an external directory, mock only `registry.subscribe`, and load the addon sources fresh on every request. Install into the real app only after the behavior looks right, and say plainly what was not exercised in a real window.
+- Never insert elements into DOM that T3's React components own, and never patch T3's functions. Attach beside T3's elements and read their position.
+- Keep idle cost near zero: no polling, no work while the addon's UI is closed or the window is in the background, use browser events instead of timers.
+- Develop against a mock page, not the installed app. Install into the real app only after it looks right, and say what was not exercised in a real window.
 
 ## Scope
 
