@@ -16,6 +16,7 @@ import urllib.request
 
 sys.dont_write_bytecode = True
 from lifecycle import write_json
+import bridge
 
 LABEL = 'com.t3adds.codex-dictation'
 STATE = Path(os.environ.get('T3_ADDS_STATE_DIR', Path.home() / 'Library/Application Support/T3 Adds')).expanduser() / 'codex-dictation'
@@ -101,9 +102,10 @@ def manage(action):
         codex = shutil.which('codex')
         if not codex:
             raise ValueError('Codex CLI is not on PATH.')
-        version = subprocess.run([codex, '--version'], check=True, capture_output=True, text=True).stdout.strip()
-        if version != 'codex-cli 0.167.0':
-            raise ValueError('Unsupported Codex version; expected 0.167.0.')
+        try:
+            version = bridge.probe(codex)
+        except bridge.ProtocolError as error:
+            raise ValueError('Unsupported Codex CLI: ' + str(error))
         config = {'Label': LABEL, 'ProgramArguments': [sys.executable, str(RUNTIME / 'bridge.py'), '--codex', codex],
                   'RunAtLoad': True, 'KeepAlive': True, 'WorkingDirectory': str(RUNTIME),
                   'ProcessType': 'Background', 'EnvironmentVariables': {'PYTHONDONTWRITEBYTECODE': '1', 'PATH': os.environ.get('PATH', os.defpath)},
@@ -161,7 +163,7 @@ def manage(action):
                     if attempt == 19:
                         raise
                     time.sleep(0.25)
-            receipt = {'schemaVersion': 1, 'addon': 'codex-dictation', 'version': '0.1.0', 'codexVersion': '0.167.0',
+            receipt = {'schemaVersion': 1, 'addon': 'codex-dictation', 'version': '0.1.0', 'codexVersion': version,
                        'transaction': operation, 'files': {name: item['after'] for name, item in files.items()}}
             owned(receipt); write_json(RECEIPT, receipt)
         else:

@@ -5,7 +5,6 @@ export function createDraftWriter(host, target) {
   let expected = original;
   return {
     apply(transcript) {
-      if (JSON.stringify(host.target()) !== JSON.stringify(target)) throw new Error('Dictation stopped because the chat changed.');
       if (host.prompt(target) !== expected) throw new Error('Dictation stopped to preserve your edited or sent prompt.');
       const next = transcript ? prefix + transcript : original;
       if (next !== expected) { host.write(target, next); expected = next; }

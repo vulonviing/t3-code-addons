@@ -1,4 +1,4 @@
-import { host } from './host-v017.mjs';
+import { host } from './host.mjs';
 import { createConnection } from './connection.mjs';
 import { createController } from './controller.mjs';
 
@@ -24,11 +24,15 @@ export function mountMicrophone({ adapter = host, connect = createConnection } =
     button[data-phase=recording] .wave{display:flex}.wave i{display:block;width:3px;border-radius:2px;background:currentColor;height:calc(4px + var(--level,0) * var(--peak,1) * 15px);transition:height .07s linear}.wave i:nth-child(1),.wave i:nth-child(5){--peak:.45}.wave i:nth-child(2),.wave i:nth-child(4){--peak:.75}
     @keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){button{transition:none}.spinner{animation:none;border-style:dotted}.wave i{transition:none}}
     .note{position:absolute;bottom:calc(100% + 8px);left:0;min-width:200px;max-width:min(300px,80vw);padding:8px 10px;border:1px solid #8885;border-radius:9px;background:var(--background,#18181b);color:var(--foreground,#ddd);box-shadow:0 4px 18px #0003;line-height:1.4}
+    .note p{margin:0;padding-right:22px;white-space:normal;overflow-wrap:anywhere}
+    .note .close{position:absolute;top:4px;right:4px;width:20px;height:20px;padding:0;border:0;border-radius:6px;background:transparent;font:16px/1 system-ui;color:inherit;opacity:.7}.note .close:hover{opacity:1;background:color-mix(in srgb,var(--foreground,#fff) 12%,transparent)}
     [hidden]{display:none!important}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-  </style><button type="button" data-phase="idle" aria-label="Start dictation" aria-pressed="false" title="Dictate into the prompt. Audio is sent to OpenAI through Codex."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0012 0v-2M12 18v3M9 21h6"/></svg><span class="spinner" aria-hidden="true"></span><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="label" aria-hidden="true"></span></button><span class="sr" role="status" aria-live="polite"></span><div class="note" role="alert" hidden></div>`;
-  const button = root.querySelector('button'), status = root.querySelector('[role=status]'), note = root.querySelector('.note');
+  </style><button type="button" data-phase="idle" aria-label="Start dictation" aria-pressed="false" title="Dictate into the prompt. Audio is sent to OpenAI through Codex."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0012 0v-2M12 18v3M9 21h6"/></svg><span class="spinner" aria-hidden="true"></span><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="label" aria-hidden="true"></span></button><span class="sr" role="status" aria-live="polite"></span><div class="note" role="alert" hidden><p></p><button type="button" class="close" aria-label="Dismiss message" title="Dismiss">\u00d7</button></div>`;
+  const button = root.querySelector('button'), status = root.querySelector('[role=status]'), note = root.querySelector('.note'), noteText = note.querySelector('p');
+  let dismissed = '';
   let lastLevel = 0, levelText = '0';
   const controller = createController({ host: adapter, connect, level(value) {
+    if (document.hidden) return;
     lastLevel = Math.max(value, lastLevel * .65);
     const next = (Math.round(lastLevel * 40) / 40).toFixed(3);
     if (next !== levelText) { levelText = next; button.style.setProperty('--level', next); }
@@ -41,17 +45,30 @@ export function mountMicrophone({ adapter = host, connect = createConnection } =
     root.querySelector('.label').textContent = phase === 'connecting' ? 'Connecting' : phase === 'recording' ? 'Listening' : phase === 'finishing' ? 'Finishing' : '';
     if (phase !== 'recording') { lastLevel = 0; levelText = '0'; button.style.setProperty('--level', '0'); }
     status.textContent = phase === 'connecting' ? 'Connecting dictation.' : phase === 'recording' ? 'Dictation is listening.' : phase === 'finishing' ? 'Finishing the last words.' : 'Dictation stopped.';
-    note.textContent = error; note.hidden = !error;
+    noteText.textContent = error || ''; note.hidden = !error || error === dismissed;
     schedule();
   } });
+  note.querySelector('.close').onclick = () => { dismissed = noteText.textContent; note.hidden = true; };
   button.onclick = () => {
-    if (controller.state().phase === 'idle') { note.hidden = true; void controller.start(); }
-    else { void controller.stop(); adapter.focus(); }
+    if (controller.state().phase === 'idle') { dismissed = ''; note.hidden = true; void controller.start(); }
+    else {
+      const originalTarget = controller.target();
+      void controller.stop();
+      if (JSON.stringify(adapter.target()) === JSON.stringify(originalTarget)) adapter.focus();
+    }
   };
 
   let footer = null, anchor = null, form = null, right = null, queued = false;
   function place() {
-    if (!footer?.isConnected || document.hidden) return;
+    if (document.hidden) return;
+    if (!footer?.isConnected) {
+      // Keep Stop reachable on settings or pages without a composer.
+      mount.hidden = controller.state().phase === 'idle';
+      button.toggleAttribute('data-compact', false);
+      mount.style.left = `${Math.max(8, innerWidth - 140)}px`;
+      mount.style.top = `${Math.max(8, innerHeight - 48)}px`;
+      return;
+    }
     const f = footer.getBoundingClientRect();
     const a = anchor?.getBoundingClientRect();
     const r = right?.getBoundingClientRect();
@@ -87,7 +104,6 @@ export function mountMicrophone({ adapter = host, connect = createConnection } =
   function attach() {
     if (document.hidden) return;
     const target = adapter.target();
-    if (controller.target() && JSON.stringify(target) !== JSON.stringify(controller.target())) void controller.stop({ drain: false });
     const next = target && [...document.querySelectorAll('[data-chat-composer-form="true"] [data-chat-composer-footer="true"]')].find(e => e.getClientRects().length);
     const nextAnchor = ['#t3-adds-orchestrator', '#t3-adds-council-composer'].map(s => next?.querySelector(s)).find(e => e?.getClientRects().length) ?? null;
     const nextForm = next?.closest('[data-chat-composer-form="true"]') ?? null;
@@ -97,9 +113,7 @@ export function mountMicrophone({ adapter = host, connect = createConnection } =
       // The composer can grow while its footer keeps exactly the same dimensions.
       for (const element of [footer, anchor, form, right]) if (element) resize.observe(element);
     }
-    mount.hidden = !footer;
-    if (!footer && controller.target()) void controller.stop({ drain: false });
-    if (footer) place();
+    place();
   }
   function schedule() { if (!queued && !document.hidden) { queued = true; requestAnimationFrame(() => { queued = false; attach(); }); } }
   // Observe only the host root for discovery/layout changes; no idle timers or React DOM mutations.
@@ -114,8 +128,7 @@ export function mountMicrophone({ adapter = host, connect = createConnection } =
   window.addEventListener('scroll', schedule, { passive: true, capture: true });
   window.visualViewport?.addEventListener('resize', schedule);
   window.visualViewport?.addEventListener('scroll', schedule);
-  window.addEventListener('blur', () => void controller.stop({ drain: false }));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) void controller.stop({ drain: false }); else schedule(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(); });
   window.addEventListener('pagehide', () => void controller.stop({ drain: false }));
   document.body.append(mount); schedule();
 }

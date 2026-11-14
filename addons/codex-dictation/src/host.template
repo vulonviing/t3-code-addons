@@ -1,5 +1,13 @@
-// Verified public draft-store actions; the imported host module is hash-pinned.
-import { A as drafts } from '../utils-BL51zcsk.js';
+// Host adapter template. The installer discovers the draft-store chunk and export alias in the target client and
+// renders this file as host.mjs; nothing here is pinned to a T3 release.
+import * as chunk from '../@@CHUNK@@';
+
+const drafts = chunk['@@ALIAS@@'];
+const UNSUPPORTED = 'This T3 release changed its draft store, so dictation cannot write to the prompt. Update the Codex Dictation addon.';
+
+function state() {
+  try { return drafts?.getState?.() ?? null; } catch { return null; }
+}
 
 export function routeTarget(location) {
   const path = location.hash?.startsWith('#/') ? location.hash.slice(1) : location.pathname;
@@ -12,12 +20,15 @@ export function routeTarget(location) {
 }
 
 export const host = {
+  unsupported() {
+    const s = state();
+    return typeof s?.getComposerDraft === 'function' && typeof s?.setPrompt === 'function' ? '' : UNSUPPORTED;
+  },
   target: () => routeTarget(window.location),
-  prompt(target) { return drafts.getState().getComposerDraft(target)?.prompt ?? ''; },
+  prompt(target) { return state()?.getComposerDraft(target)?.prompt ?? ''; },
   write(target, text) {
-    const current = this.target();
-    if (JSON.stringify(current) !== JSON.stringify(target)) throw new Error('Return to the chat where you started dictation before inserting.');
-    drafts.getState().setPrompt(target, text);
+    if (host.unsupported()) throw new Error(UNSUPPORTED);
+    state().setPrompt(target, text);
   },
   focus() {
     const input = [...document.querySelectorAll('[data-chat-composer-form="true"] textarea, [data-chat-composer-form="true"] [role="textbox"], [data-chat-composer-form="true"] [contenteditable="true"]')].find(e => e.getClientRects().length);

@@ -49,8 +49,8 @@ class LayeredInstallerTests(unittest.TestCase):
         self.state = self.root / 'state'
         self.app = self.root / 'App.app'
         (self.app / 'Contents/Resources').mkdir(parents=True)
-        package = json.dumps({'version': install.ADDON['compatibility']['version'],
-                              't3codeCommitHash': install.ADDON['compatibility']['commit']}).encode()
+        verified = install.ADDON['compatibility']['verified'][-1]
+        package = json.dumps({'version': verified['version'], 't3codeCommitHash': verified['commit']}).encode()
         header_hash = write_archive(self.app / 'Contents/Resources/app.asar', {
             'package.json': package, install.ENTRY: INDEX.encode(),
             install.PREFIX + 'assets/host.js': b'host', 'other.txt': b'keep'})
@@ -61,7 +61,8 @@ class LayeredInstallerTests(unittest.TestCase):
         patches = [
             patch.object(install, 'STATE', self.state),
             patch.object(install, 'RECEIPT', self.state / 'installation.json'),
-            patch.object(install, 'sources', lambda: dict(self.sources)),
+            patch.object(install, 'sources', lambda found: dict(self.sources)),
+            patch.object(install, 'discover', lambda archive: {'chunk': 'host.js', 'alias': 'A', 'chunkSha256': 'x'}),
             patch.object(install, 'source_record', lambda: {'src': 'x'}),
             patch.object(install, 'verify_signed', lambda path: None),
             patch.object(install, 'verify_host', lambda app: Archive(Path(app) / 'Contents/Resources/app.asar')),
@@ -92,6 +93,7 @@ class LayeredInstallerTests(unittest.TestCase):
         self.assertEqual({p for p in original if original[p] != installed.get(p)}, {install.ENTRY})
         receipt = json.loads((self.state / 'installation.json').read_text())
         self.assertEqual(receipt['ownedEntries'], {p: digest(d) for p, d in self.sources.items()})
+        self.assertEqual(receipt['hostDiscovery']['chunk'], 'host.js')
         self.run_action('remove')
         self.assertEqual(self.entries(), original)
         self.assertEqual(self.index(), INDEX)
@@ -160,6 +162,10 @@ class LayeredInstallerTests(unittest.TestCase):
             package['version'] = '9.9.9'
             overlay(self.app, {'package.json': json.dumps(package).encode()})
             with self.assertRaisesRegex(ValueError, 'Unsupported T3 build'):
+                install.verify_host(self.app)
+            package['version'] = '0.1.12'
+            overlay(self.app, {'package.json': json.dumps(package).encode()})
+            with self.assertRaisesRegex(ValueError, 'Unsupported T3 client'):
                 install.verify_host(self.app)
 
 

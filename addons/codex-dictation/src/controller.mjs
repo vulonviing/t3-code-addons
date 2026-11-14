@@ -1,7 +1,7 @@
 import { createTranscript } from './transcript.mjs';
 import { createDraftWriter } from './draft.mjs';
 
-export function createController({ host, connect, changed = () => {}, level = () => {}, finishMs = 1200, recordMs = 180000 }) {
+export function createController({ host, connect, changed = () => {}, level = () => {}, finishMs = 1200 }) {
   let session = null, phase = 'idle', error = '';
   const notify = () => changed({ phase, error });
   function stop({ drain = true, message = '' } = {}) {
@@ -10,7 +10,6 @@ export function createController({ host, connect, changed = () => {}, level = ()
     if (!drain) s.accepting = false;
     if (message) error = message;
     if (s.stopping) { notify(); return s.stopping; }
-    clearTimeout(s.limit);
     s.connection.mute();
     phase = 'finishing'; notify();
     s.stopping = (async () => {
@@ -26,6 +25,8 @@ export function createController({ host, connect, changed = () => {}, level = ()
     if (session) return;
     const target = host.target();
     if (!target) return;
+    const unsupported = host.unsupported?.();
+    if (unsupported) { error = unsupported; notify(); return; }
     error = '';
     const transcript = createTranscript(), writer = createDraftWriter(host, target);
     const s = { target, accepting: true };
@@ -46,7 +47,6 @@ export function createController({ host, connect, changed = () => {}, level = ()
       await s.connection.start();
       if (session !== s || s.stopping) return;
       phase = 'recording'; notify();
-      s.limit = setTimeout(() => void stop(), recordMs);
     } catch (e) {
       if (session === s) await stop({ drain: false, message: e.name === 'NotAllowedError' ? 'Microphone access was denied. Allow it in system settings and try again.' : e.message });
     }

@@ -3,7 +3,7 @@ const BASE = 'http://127.0.0.1:48173';
 export async function request(path, body, signal) {
   let response;
   try {
-    response = await fetch(BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-T3-Dictation': '1' }, body: JSON.stringify(body), signal });
+    response = await fetch(BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-T3-Dictation': '1' }, body: JSON.stringify(body), signal, keepalive: path === '/stop' });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
     throw new Error('The dictation helper is unavailable. Run scripts/service.py check or install.');
@@ -14,15 +14,26 @@ export async function request(path, body, signal) {
 }
 
 export function createConnection({ onEvent, onError, onLevel, mediaDevices = navigator.mediaDevices, Peer = RTCPeerConnection, call = request, captureFactory = createCapture }) {
+  let leaseTimer;
   let pc, stream, session, capture, opening, muted = false, aborted = false, serviceReady = false, readyResolve;
   const ready = new Promise(resolve => { readyResolve = resolve; });
   const abort = new AbortController();
   function closeMedia() { stream?.getTracks().forEach((t) => t.stop()); capture?.close(); pc?.close(); readyResolve(); }
   async function stop() {
     aborted = true;
+    clearTimeout(leaseTimer);
     closeMedia();
     // The start response owns cleanup if the request is still in flight.
     if (session) { const id = session; session = null; await call('/stop', { id }).catch(() => {}); }
+  }
+  async function renewLease() {
+    if (aborted || !session) return;
+    try {
+      await call('/keepalive', { id: session });
+      if (!aborted) leaseTimer = setTimeout(renewLease, 30000);
+    } catch {
+      if (!aborted) { await stop(); onError(new Error('The dictation helper connection was lost. Your transcript is preserved.')); }
+    }
   }
   return {
     start() {
@@ -51,6 +62,7 @@ export function createConnection({ onEvent, onError, onLevel, mediaDevices = nav
         await pc.setLocalDescription(await pc.createOffer());
         const result = await call('/start', { sdp: pc.localDescription.sdp }, abort.signal);
         session = result.id;
+        if (!aborted) leaseTimer = setTimeout(renewLease, 30000);
         if (aborted) { await stop(); return; }
         await pc.setRemoteDescription({ type: 'answer', sdp: result.sdp });
         await new Promise((resolve, reject) => {

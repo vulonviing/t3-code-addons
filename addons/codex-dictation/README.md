@@ -1,6 +1,6 @@
 # Codex Dictation
 
-**Version 0.3.2 · macOS · T3 Code 0.1.7 / `322f6544dfad` · Codex CLI 0.167.0**
+**Version 0.3.7 · macOS · T3 Code 0.1.x (verified 0.1.7, 0.1.9) · Codex CLI 0.167.0 / 0.169.0**
 
 Experimental speech-to-text for T3 Code using the local Codex CLI's ChatGPT sign-in. No OpenAI API key is used. Click the **microphone icon beside Orchestrator / Model Council**, speak, and click it again to stop. Words appear directly in the existing message draft as you speak. The message remains unsent; use T3's normal Send button or Enter shortcut when ready. There is no separate transcript panel or insertion step.
 
@@ -22,8 +22,8 @@ Existing prompt text is preserved. The addon also supports new-chat drafts, and 
 - Live transcription directly into the existing draft, with no separate transcript panel or insertion button.
 - RAM-only startup capture so speech acquired during connection negotiation can be replayed in order.
 - Distinct connection states, a real microphone-level waveform, compact controls, and reduced-motion support.
-- Draft protection when the user edits, clears, sends, or navigates to another chat.
-- Event-driven placement, bounded recording sessions, explicit resource cleanup, and no idle model session.
+- Draft protection when the user edits, clears, or sends the original draft. Switching chats keeps transcription attached to the original draft.
+- Event-driven placement, explicit resource cleanup, and no idle model session.
 - A standalone installer, pinned host hashes, independent helper, recovery copies, and external transaction records.
 
 ## Recording states and startup buffering
@@ -40,24 +40,24 @@ A small loopback helper launches an isolated, ephemeral Codex app-server session
 
 This uses a conversational voice session, not the standalone ChatGPT dictation endpoint. Exact model parity, identical accuracy, subscription limits, and long-term availability are not established. The voice service may generate an ignored assistant response. This is online processing and may consume account voice allowances. No claim of free or unlimited usage is made.
 
-Recordings stop on window blur, backgrounding, chat navigation, or after three minutes. User edits and sending/clearing the prompt take priority: the next transcript fragment stops dictation instead of overwriting an edited draft or recreating a sent message. Duplicate transcript items are replaced instead of appended twice.
+Recording continues when switching apps, windows, browser tabs, or T3 chats, until you click Stop. Transcript fragments always update the draft where recording began, even while viewing another chat. A floating Stop control remains available on pages without a composer. There is no addon-imposed recording duration limit. Closing/reloading the T3 window, microphone or network errors, and service-side limits can still end a session. User edits and sending/clearing the prompt take priority: the next transcript fragment stops dictation instead of overwriting an edited draft or recreating a sent message. Duplicate transcript items are replaced instead of appended twice.
 
 The addon keeps no separate audio recordings or transcript logs. The startup audio buffer lives only in RAM and is discarded when the connection closes. Dictated text becomes an ordinary T3 draft and follows T3's normal draft persistence. Codex and OpenAI's own processing and retention policies still apply.
 
 ## Resource use
 
-Idle dictation does not create an AudioContext, microphone stream, WebRTC peer, Codex process, or remote voice session. The small loopback helper remains available. Placement is event-driven and coalesced to one update per animation frame; composer resizing is observed explicitly, without polling. Waveform styles update only when the quantized level changes. Hidden windows stop recording.
+Idle dictation does not create an AudioContext, microphone stream, WebRTC peer, Codex process, or remote voice session. The small loopback helper remains available. Placement is event-driven and coalesced to one update per animation frame; composer resizing is observed explicitly, without polling. Waveform styles update only when the quantized level changes. Hidden windows keep recording while waveform painting and placement work are suspended.
 
-Recording requires microphone processing, PCM buffering/replay, WebRTC encoding, and an online conversational voice session. The startup buffer is capped at 45 seconds (about 8.6 MB of mono float PCM at 48 kHz); recordings stop at three minutes. Stopping releases tracks, the audio graph, peer, timers, and isolated Codex process. These bounds limit unattended use but are not a battery benchmark or an account-usage meter. The remote service may produce ignored assistant output, so zero token/quota cost cannot be guaranteed. No additional coding/model turns are requested for dictation, and unexpected agent turns are terminated.
+Recording requires microphone processing, PCM buffering/replay, WebRTC encoding, and an online conversational voice session. The startup buffer is capped at 45 seconds (about 8.6 MB of mono float PCM at 48 kHz); this bounds startup buffering, not the recording duration. Stopping releases tracks, the audio graph, peer, timers, and isolated Codex process. Continuous background recording continues to use microphone, network, battery, and account allowances until stopped. There is no addon duration cutoff, battery benchmark, or account-usage meter. The remote service may produce ignored assistant output, so zero token/quota cost cannot be guaranteed. No additional coding/model turns are requested for dictation, and unexpected agent turns are terminated.
 
 ## Compatibility
 
-- macOS; T3 Code **0.1.7**, commit **322f6544dfad**.
-- Codex CLI **0.167.0**, signed in with a ChatGPT account; the helper refuses other versions and API-key-only sessions.
+- macOS; any T3 Code **0.1.x** host in which the draft store and composer markers are discovered (see below). Verified: **0.1.7** (`322f6544dfad`) and **0.1.9** (`24e77473ecf4`).
+- Codex CLI signed in with a ChatGPT account (API-key-only sessions are refused). Verified: **0.167.0** and **0.169.0**. The helper never blocks on a version number: `apply`/`update` run a read-only capability probe that starts `codex app-server`, completes the `initialize` handshake, reads the account, and checks that `thread/start` and `thread/realtime/start` exist by sending deliberately invalid parameters (no thread, voice session, or model turn is created). Only a real protocol mismatch (handshake fails, a method is missing, or a reply has a different shape) refuses installation with a clear message; at runtime the same condition is shown once in the widget's info note.
 - Python 3.9 or newer and an existing persistent signing certificate pinned in T3, as used by the independent overlay installers.
 - Desktop origin `t3code://app`. Remote/browser clients are intentionally not allowed to control this machine's microphone helper.
 
-The installer pins the imported draft-store host module by SHA-256. This requires a modified, re-signed application bundle; external addon loading is not assumed. Other addons are preserved. The addon is self-contained and does not import sibling addons.
+The addon does not pin a hashed T3 chunk. At `check`, `apply`, and `update`, `scripts/discover.py` scans the target client's top-level `assets/*.js` for the module that defines and exports the composer draft store (an object with `getComposerDraft` and `setPrompt` actions), resolves its minified export alias from that module's export list, and renders `src/host.template` into the installed `host.mjs` with the discovered chunk name and alias. The three composer markers (`data-chat-composer-form`, `-footer`, `-actions`) must also exist in the client. The discovered chunk's SHA-256 is recorded in the install receipt (`hostDiscovery`), not in `compatibility.json`. If the store or markers cannot be found, or more than one candidate exists, installation stops with a clear error. If a store that was found at install time later lacks the draft actions at runtime, the widget shows its info note instead of recording. Ordinary version differences within 0.1.x are not reported. After an official T3 update, run `update` (or withdraw and reinstall) so the adapter is regenerated for the new chunk name. This requires a modified, re-signed application bundle; external addon loading is not assumed. Other addons are preserved. The addon is self-contained and does not import sibling addons.
 
 ## Install and verify
 
@@ -78,7 +78,7 @@ python3 scripts/install.py check
 python3 scripts/service.py check
 ```
 
-The helper listens only on `127.0.0.1:48173`. Its HTTP operations require the exact desktop Origin, loopback Host, and a custom request header. A LaunchAgent keeps the idle negotiation helper available; no Codex process, microphone, timer loop, or model session is started while idle. The helper rejects simultaneous recording sessions.
+The helper listens only on `127.0.0.1:48173`. Its HTTP operations require the exact desktop Origin, loopback Host, and a custom request header. A LaunchAgent keeps the idle negotiation helper available; no Codex process, microphone, timer loop, or model session is started while idle. The helper rejects simultaneous recording sessions. While recording, the renderer renews an ownership lease every 30 seconds, including in the background. If the renderer closes or crashes and stops renewing for three minutes, the helper closes the abandoned session. This timeout measures missing client contact, not recording duration. Normal window unloading also sends a keepalive-enabled stop request.
 
 Local state is stored under the operating system application-support directory, in `T3 Adds/codex-dictation/`, or under `T3_ADDS_STATE_DIR` when configured. It contains app recovery copies, receipts, helper runtime files, and transaction journals. The LaunchAgent plist is under the user's `Library/LaunchAgents` directory. Neither location belongs in the source repository.
 

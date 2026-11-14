@@ -1,3 +1,9 @@
 {
-  "apps/server/dist/client/assets/utils-BL51zcsk.js": "754363c6f1283ee814cdf1dae8dbc6f13d66810ba2b6373b17c6b4c10076e099"
+  "hostSeries": "0.1",
+  "verifiedHosts": ["0.1.7", "0.1.9"],
+  "pinnedFiles": {},
+  "discovery": {
+    "draftStore": "A client chunk defining and exporting an object with getComposerDraft and setPrompt actions; chunk name and export alias are discovered and rendered into host.mjs by scripts/discover.py. The chunk hash is recorded in the install receipt, not pinned.",
+    "requiredClientMarkers": ["data-chat-composer-form", "data-chat-composer-footer", "data-chat-composer-actions"]
+  }
 }

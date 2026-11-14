@@ -45,3 +45,33 @@ test('Early audio is not released until the data channel and voice service are b
   channel.onmessage({ data: JSON.stringify({ type: 'session.started' }) }); await opening;
   assert.equal(releases, 1); await c.stop();
 });
+
+test('Active recordings renew helper ownership and stop cancels future renewals', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const calls = []; let channel;
+  const track = { stop() {} }, stream = { getTracks: () => [track], getAudioTracks: () => [track] };
+  class Peer {
+    addTrack() {} createDataChannel() { channel = { readyState: 'open' }; return channel; }
+    async createOffer() { return {}; } async setLocalDescription() { this.localDescription = { sdp: 'v=0' }; }
+    async setRemoteDescription() {} close() {}
+  }
+  const c = createConnection({ captureFactory, mediaDevices: { async getUserMedia() { return stream; } }, Peer,
+    onEvent() {}, onError() {}, async call(path) {
+      calls.push(path);
+      if (path === '/start') { channel.onmessage({ data: '{"type":"session.started"}' }); return { id: 'owned', sdp: 'answer' }; }
+      return {};
+    },
+  });
+  await c.start(); t.mock.timers.tick(30000); await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(calls, ['/start', '/keepalive']);
+  await c.stop(); t.mock.timers.tick(180000); await Promise.resolve();
+  assert.deepEqual(calls, ['/start', '/keepalive', '/stop']);
+});
+
+test('Window-unload stop requests survive document teardown without changing start requests', async t => {
+  const { request } = await import('../src/connection.mjs');
+  const options = [];
+  t.mock.method(globalThis, 'fetch', async (_url, init) => { options.push(init); return { ok: true, async json() { return {}; } }; });
+  await request('/stop', { id: 'owned' }); await request('/health', {});
+  assert.equal(options[0].keepalive, true); assert.equal(options[1].keepalive, false);
+});

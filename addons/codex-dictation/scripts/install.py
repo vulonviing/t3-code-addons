@@ -19,6 +19,7 @@ sys.dont_write_bytecode = True
 from asar import Archive, digest
 from lifecycle import Transaction, changes, inventory, write_json
 import signing
+from discover import DiscoveryError, discover as discover_assets, render_adapter
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = json.loads((ROOT / 'addon.json').read_text())
@@ -53,13 +54,30 @@ def identity(app):
 def verify_host(app):
     archive = Archive(Path(app) / 'Contents/Resources/app.asar')
     package = json.loads(archive.read('package.json'))
-    compatible = ADDON['compatibility']
-    if package['version'] != compatible['version'] or package.get('t3codeCommitHash') != compatible['commit']:
-        raise ValueError(f"Unsupported T3 build: {package['version']} / {package.get('t3codeCommitHash')}")
-    for path, expected in json.loads((ROOT / 'compatibility.json').read_text()).items():
-        if digest(archive.read(path)) != expected:
-            raise ValueError(f'Changed or unsupported integration file: {path}')
+    series = ADDON['compatibility']['series']
+    if not package['version'].startswith(series + '.'):
+        raise ValueError(f"Unsupported T3 build: {package['version']} (this addon supports the {series}.x series)")
+    discover(archive)
     return archive
+
+
+def discover(archive):
+    """Find the draft store in the target client by signature; refuse clearly when it is not there."""
+    client = PREFIX + 'assets/'
+    assets = {}
+
+    def walk(node, prefix=''):
+        for name, value in node.get('files', {}).items():
+            if 'files' in value:
+                walk(value, prefix + name + '/')
+            elif prefix == client and name.endswith('.js') and 'link' not in value and not value.get('unpacked'):
+                assets[name] = archive.read(prefix + name)
+
+    walk(archive.header)
+    try:
+        return discover_assets(assets)
+    except DiscoveryError as error:
+        raise ValueError(f'Unsupported T3 client: {error}')
 
 
 def entries(app):
@@ -85,13 +103,15 @@ def entries(app):
     return result
 
 
-def sources():
-    return {ASSETS + path.name: path.read_bytes() for path in sorted((ROOT / 'src').glob('*.mjs'))}
+def sources(found):
+    files = {ASSETS + path.name: path.read_bytes() for path in sorted((ROOT / 'src').glob('*.mjs'))}
+    files[ASSETS + 'host.mjs'] = render_adapter(found).encode()
+    return files
 
 
 def source_record():
     paths = [ROOT / name for name in ('addon.json', 'compatibility.json')]
-    paths += sorted((ROOT / 'src').glob('*.mjs'))
+    paths += sorted((ROOT / 'src').glob('*.mjs')) + [ROOT / 'src/host.template']
     paths += sorted(path for path in (ROOT / 'scripts').iterdir() if path.suffix in ('.py', '.mjs'))
     return {str(path.relative_to(ROOT)): digest(path.read_bytes()) for path in paths}
 
@@ -127,11 +147,11 @@ def plan(archive, mode, receipt):
             raise ValueError('Addon already present in the installed application. Check, update, or remove it first.')
         if index.count('</body>') != 1:
             raise ValueError('Unsupported client index: body anchor is not unique.')
-        return {ENTRY: index.replace('</body>', INSERT + '</body>').encode(), **sources()}, []
+        return {ENTRY: index.replace('</body>', INSERT + '</body>').encode(), **sources(discover(archive))}, []
     index = check_owned(archive, receipt)
     if mode == 'remove':
         return {ENTRY: index.replace(receipt['insert'], '', 1).encode()}, sorted(receipt['ownedEntries'])
-    replacements = sources()
+    replacements = sources(discover(archive))
     if receipt['insert'] != INSERT:
         replacements[ENTRY] = index.replace(receipt['insert'], INSERT, 1).encode()
     return replacements, sorted(set(receipt['ownedEntries']) - set(replacements))
@@ -273,7 +293,9 @@ def execute(args, app):
         if mode != 'remove':
             next_receipt = dict(schemaVersion=3, kind='overlay', app=str(app), addon=ADDON, host=host,
                                 sources=source_record(), insert=INSERT,
-                                ownedEntries={path: digest(data) for path, data in sources().items()},
+                                hostDiscovery=discover(Archive(app / 'Contents/Resources/app.asar')),
+                                ownedEntries={path: digest(data) for path, data in replacements.items()
+                                              if path.startswith(ASSETS)},
                                 installedAsarHash=digest((staged / 'Contents/Resources/app.asar').read_bytes()),
                                 signing=signature,
                                 verification={'hostCompatibility': 'passed', 'preparedSignature': 'passed',
