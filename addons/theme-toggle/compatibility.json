@@ -1,3 +1,11 @@
 {
-  "apps/server/dist/client/assets/useTheme-DGh-F8xD.js": "0b7d59051a6c66a2c811c84003dfdce3f1a5f25314911d52e551de1c2dc7775a"
+  "verifiedHosts": [
+    "0.1.7",
+    "0.1.9"
+  ],
+  "pinnedFiles": {},
+  "discovery": {
+    "themeModule": "A client chunk containing the external-store subscribe helper, the snapshot accessor before it, and the appearance-mode setter that suppresses transitions; chunk name and aliases are discovered by scripts/discover.py and rendered into host.mjs. The chunk hash is recorded in the install receipt, not pinned.",
+    "onFailure": "Installation still proceeds (the overlay only adds its own files); the addon shows a dismissible note that it could not attach."
+  }
 }

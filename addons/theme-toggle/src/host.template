@@ -1,0 +1,27 @@
+// Host adapter template. The installer discovers the theme module in the target client and renders this file as
+// host.mjs; nothing here is pinned to a T3 release. When discovery fails, `host` is null and `attachError` says why.
+// @@DISCOVERY@@
+
+function pick(key) {
+  const value = chunk?.[symbols[key]];
+  return typeof value === 'function' ? value : null;
+}
+
+function problem() {
+  if (discoveryError) return discoveryError;
+  const snapshot = pick('snapshot');
+  if (!snapshot || !pick('setAppearanceMode') || !pick('subscribe')) return 'The theme functions this addon needs are missing from this T3 release.';
+  try {
+    const state = snapshot();
+    if (typeof state?.resolvedTheme !== 'string' || typeof state?.appearanceMode !== 'string') throw new Error('shape');
+  } catch { return 'T3 reports its theme state in a format this addon does not recognize.'; }
+  return '';
+}
+
+export const attachError = problem();
+
+export const host = attachError ? null : {
+  snapshot() { return pick('snapshot')(); },
+  setAppearanceMode(mode) { return pick('setAppearanceMode')(mode); },
+  subscribe(listener) { return pick('subscribe')(listener); },
+};

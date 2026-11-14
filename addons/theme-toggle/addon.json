@@ -1,13 +1,22 @@
 {
   "id": "theme-toggle",
   "name": "Theme Toggle",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A light/dark switch next to T3's header buttons.",
   "compatibility": {
-    "version": "0.1.7",
-    "commit": "322f6544dfad"
+    "note": "Informational only; nothing is gated on a T3 version.",
+    "verified": [
+      {
+        "version": "0.1.7",
+        "commit": "322f6544dfad"
+      },
+      {
+        "version": "0.1.9",
+        "commit": "24e77473ecf4"
+      }
+    ]
   },
   "dependencies": [],
   "entry": "src/ui.mjs",
-  "adapter": "src/host-v017.mjs"
+  "adapter": "src/host.template"
 }

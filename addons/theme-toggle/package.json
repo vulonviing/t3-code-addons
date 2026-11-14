@@ -1,11 +1,11 @@
 {
   "name": "@t3-adds/theme-toggle",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "A light/dark switch in the T3 Code header.",
   "scripts": {
-    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_installer.py",
+    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_discover.py && python3 scripts/test_installer.py",
     "setup-signing": "python3 scripts/install.py setup-signing",
     "check": "python3 scripts/install.py check",
     "apply": "python3 scripts/install.py apply",

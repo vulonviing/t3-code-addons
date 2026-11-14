@@ -3,12 +3,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const addon = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assets = process.argv[2];
 if (!assets) throw new Error('Usage: node scripts/verify_host.mjs /external/official-client-assets');
+const adapter = execFileSync('python3', [path.join(addon, 'scripts/discover.py'), assets, '--adapter'], { encoding: 'utf8' });
 const browser = await chromium.launch({
   ...(process.env.T3_ADDS_TEST_BROWSER ? { executablePath: process.env.T3_ADDS_TEST_BROWSER } : {}),
   headless: true,
@@ -28,6 +30,7 @@ try {
         + '</div></body></html>' });
     }
     const relative = url.pathname.slice('/assets/'.length);
+    if (relative === 'theme-toggle/host.mjs') return route.fulfill({ contentType: 'text/javascript', body: adapter });
     const file = relative.startsWith('theme-toggle/')
       ? path.join(addon, 'src', relative.slice('theme-toggle/'.length)) : path.join(assets, relative);
     await route.fulfill({ contentType: file.endsWith('.css') ? 'text/css' : 'text/javascript', body: await fs.readFile(file) });
@@ -35,7 +38,7 @@ try {
   await page.goto('http://localhost:43179/');
   const result = await page.evaluate(async () => {
     const check = (value, message) => { if (!value) throw new Error(message); };
-    const { host } = await import('/assets/theme-toggle/host-v017.mjs');
+    const { host } = await import('/assets/theme-toggle/host.mjs');
     const initial = host.snapshot();
     check(['light', 'dark'].includes(initial.resolvedTheme), 'Host snapshot exposes the resolved theme');
     await import('/assets/theme-toggle/ui.mjs');
