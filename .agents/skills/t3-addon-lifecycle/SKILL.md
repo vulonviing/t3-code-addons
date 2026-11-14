@@ -1,50 +1,52 @@
 ---
 name: t3-addon-lifecycle
-description: Manage T3 Adds installation records, withdraw addons before official T3 updates, and reassess whether addons are still needed and compatible before reinstalling them. Use for addon installation, removal, and T3 update coordination in this library.
+description: Update T3 Code with its T3 Adds addons. Unplug every addon, update T3, plug them back in, report which attached. Use for T3 updates and for installing or removing addons in this library.
 ---
 
 # T3 Addon Lifecycle
 
-AI owns feature comparison and compatibility analysis. Verified installers own application changes. Read the repository AGENTS.md and each affected addon's manifest, README, installer, and receipt before acting. Addons remain independently installable; this skill coordinates them without becoming a runtime dependency.
+Think of an engine test: unplug the wires (withdraw all addons), update the engine (T3 Code), plug the wires back in, check they fit. If they fit, done. Compatibility means "does the addon attach?" There are no version gates to maintain and no reassessment ceremony.
 
-## Authorization and state
+## Update T3 (the normal case)
 
-Use the current request and existing session authorization. A request to perform the lifecycle permits its routine steps; do not ask again at every transition. A request for advice does not authorize application changes. Never start paid model runs for validation without authorization.
+```sh
+python3 .agents/skills/t3-addon-lifecycle/scripts/update_all.py [--candidate "/path/to/T3 Code (Beta).app or .zip"]
+```
 
-Resolve machine-local state using the platform application-support directory or the documented T3_ADDS_STATE_DIR override. Keep backups, receipts, extracted releases, reference checkouts, test environments, and update-session records outside the repository. Never embed a personal path or conversation in source or evidence committed to Git.
+One run does everything and prints one table (attached or failed, with a short reason):
 
-Before the first change, atomically write `lifecycle/active.json` under that external state root, using the session format in [references/session.md](references/session.md). Persist intended actions before executing them, then record observed outcomes. Resume an existing session instead of assuming a clean start. If its application or receipts changed unexpectedly, inspect and stop before replacement. Do not silently discard an unfinished session.
+1. Lists installed addons from their receipts and records the wanted set outside the repo.
+2. Withdraws each one with its own installer: overlays `remove`, Model Council `restore` last.
+3. Installs the official update when `--candidate` is given, using the existing verified mechanics (signature and identity checks, recoverable previous app). If you updated through T3's own updater, omit it; stale receipts are archived automatically.
+4. Applies every wanted addon with its own `apply` (Model Council first), then runs each `check`.
+5. Sets up persistent signing if missing, once, with no prompt (reuses one identity for all addons).
+6. Retries any failed apply or check once (recover, withdraw, apply again); on a hard failure it prints a short reason and the exact next command, and leaves the other addons attached. The table comes from real `check` runs after everything is plugged in.
+7. Restarts T3 once through a detached job (`--no-restart` to skip).
+8. When everything attached and the working tree is dirty, runs `scripts/publish.py` (`--no-publish` to skip). A scan or push problem is reported and never fails the update.
 
-## Installation contract
+A failed addon is reported and left withdrawn; the others continue and the run finishes. Re-run the same command after an interruption or to retry failures (the wanted set is kept in `<state root>/lifecycle/wanted.json`). `--drop ID` stops wanting an addon. Exit code 1 means at least one addon is not attached.
 
-Every install, addon update, withdrawal, and host replacement must record its exact host identity, addon/source identity where applicable, before/after file inventories, added/changed/removed logical archive entries, recoverable original, verification results, and outcome. Hash file contents and record modes and symlink targets. Record intent durably before replacing application files. Do not represent a retrospective adoption as a complete historical record.
+When an addon fails to attach, tell the user in one line. Fix it at the addon level only if asked; never edit a version string just to make it pass.
 
-Use each addon's standalone installer. Inspect its actual commands; do not invent a common plugin API. For Model Council, see [references/model-council.md](references/model-council.md). For Theme Toggle, Thread Details, and Orchestrator, see [references/overlay-addons.md](references/overlay-addons.md); withdraw them before Model Council operations. If an installer cannot meet this contract, improve and test it before installation. Do not bypass a failed hash, version, signature, or compatibility check.
+## When the user says they updated T3
 
-## Phase 1: withdraw and update official T3
+1. Run `update_all.py` (add `--candidate` only if they gave you a release file). One command, no prompts.
+2. If any addon is not attached, fix it now without asking: adapt discovery in that addon, run its tests, rerun `update_all.py`. Repeat until every addon is attached.
+3. Publish: `update_all.py` does it when all attached; otherwise run `python3 .agents/skills/t3-addon-lifecycle/scripts/publish.py --footer "<attribution line from your instructions, if any>"`. It privacy-scans, runs addon tests, commits in logical groups on `update-<date>`, and pushes to the existing remote (never force, never creates a repository). Stop and tell the user only if the scan, tests, or push block it.
+4. Report in a few lines: the table, what you fixed, what was published.
 
-1. Inventory the target application and all applied addons, including external receipts and integration markers. A missing or contradictory receipt is an inspection problem, not permission to overwrite. Record source versions so the intended addon set survives withdrawal.
-2. Preserve active work. Distinguish a running old process from the app installed on disk. Do not terminate this agent's host just to finish automation. A verified bundle can be prepared or replaced on disk, but clearly hand off restart and verify the running version afterward.
-3. Check whether addons overlap. Independent whole-bundle backups must not be restored sequentially onto a multiply modified app. If the installed combination has no verified composition/reversal plan, report that limitation and stop withdrawal; prepare and test such a plan first.
-4. Withdraw recorded changes with verified recovery copies. Validate the restored official signature and identity. Preserve addon data and chat history. Record `withdrawn` only after observing success.
-5. Update through the official updater or a verified official release. A cached ZIP is a candidate, not proof of authenticity. Validate the extracted app's signature, distributor identity against the signed original, bundle identity, and newer version. Keep the previous app recoverable. Record failures without reapplying addons to an unknown intermediate state.
-6. If the user performs the update, leave the session at `awaiting-official-update` and give the exact next action. On resumption, inspect the installed app and verify its new identity. Never infer update success from a download or button click. Track disk installation and running-version confirmation separately.
+Nothing is final until the table shows every addon attached and each addon's own `check` passes.
 
-## Phase 2: reassess addons
+## Rules that stay
 
-For each previously installed addon, inspect official release notes and the relevant new host implementation. Prefer a local official reference checkout/release artifact; otherwise consult primary upstream sources. Feature names alone do not establish parity. Compare the actual user behavior, limitations, settings, and persistence needs.
+- The previous official app is kept recoverable before any replacement; do not downgrade T3 automatically, since the new version may have migrated user data.
+- Removal undoes only that addon's own changes and refuses if they were altered.
+- Resolve the state root with `T3_ADDS_STATE_DIR` or the platform application-support directory. Backups, receipts, staging, and logs stay outside the repository; no personal data or paths in the repo.
+- CLI updates (Codex, Claude Code, Open Code) never need anything from the addons. Do not run this tool for them.
+- Do not terminate the host running this agent; the restart is a detached job.
 
-Record one outcome with evidence:
+## Single addon commands
 
-- `superseded`: Official T3 covers the required behavior sufficiently. Leave the addon withdrawn and tell the user what replaces it. Preserve its data; do not silently migrate or delete it. Ask only if meaningful behavior would be lost and the preference is unclear.
-- `compatible`: Still needed; existing source passes integration and behavior checks against this exact host. Run relevant tests and prepare/verify a staged application, then reinstall under the user's lifecycle authorization. Record a fresh receipt and the new official baseline.
-- `adaptation-required`: Still needed, but source or adapter changes are necessary. Explain the required changes and return to the user before developing the adaptation, unless already explicitly authorized. Leave official T3 usable.
-- `uncertain`: Available evidence cannot establish necessity or compatibility. Explain the gap and return to the user; do not install speculatively.
+Each addon is independent. From its folder, `python3 scripts/install.py <check|setup-signing|apply|update|remove|recover|forget>`; Model Council uses `restore` instead of `remove`. Details: [references/overlay-addons.md](references/overlay-addons.md) and [references/model-council.md](references/model-council.md). `recover` finishes an interrupted swap; `update_all.py` calls it automatically when a step fails.
 
-A version guard rejecting a new build alone establishes that installation is unsupported, not that the feature is obsolete or that its code needs changing. Inspect the integration first. Never fix compatibility merely by changing a version string or trusting an AI assertion. Add a verified compatibility record only after appropriate checks pass. If the installer must change to support a new build, that is an adaptation to report.
-
-Do not downgrade T3 automatically when an addon fails: the new host may have migrated user data. Recover a failed application swap using its journal; leave a verified official new release available when addon installation cannot finish.
-
-## Completion
-
-Archive completed sessions and keep original/previous bundle recovery copies outside the project. Report installed and running T3 versions separately when they differ, addons reinstalled/withdrawn, reasons and evidence for blocked adaptations, checks actually run, and any user restart/update action still required. Do not mark the workflow complete while a restart, update, or addon decision is pending.
+Tests (fakes and temp git repos only): `python3 -B .agents/skills/t3-addon-lifecycle/scripts/test_update_all.py` and `test_publish.py` in the same folder.
