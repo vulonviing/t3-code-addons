@@ -3,11 +3,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright-core';
 
 const addon = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assets = process.argv[2];
 if (!assets) throw new Error('Usage: node scripts/verify_host.mjs /external/official-client-assets');
+// The adapter is generated from the target client by signature, exactly as the installer does; nothing is pinned.
+const discover = (...args) => execFileSync('python3', ['-I', path.join(addon, 'scripts/discover.py'), assets, ...args], { encoding: 'utf8' });
+const found = JSON.parse(discover());
+assert.deepEqual(found.missing, []);
+const adapter = discover('--adapter');
 const browser = await chromium.launch({
   ...(process.env.T3_ADDS_TEST_BROWSER ? { executablePath: process.env.T3_ADDS_TEST_BROWSER } : {}),
   headless: true,
@@ -23,19 +29,23 @@ try {
       return route.fulfill({ contentType: 'text/html', body: '<div id="root"><form data-chat-composer-form="true"><div data-chat-composer-footer="true"><span data-chat-composer-actions="right"></span></div></form></div>' });
     }
     const relative = url.pathname.slice('/assets/'.length);
+    if (relative === 'model-council/host.mjs') return route.fulfill({ contentType: 'text/javascript', body: adapter });
     const file = relative.startsWith('model-council/')
       ? path.join(addon, 'src', relative.slice('model-council/'.length)) : path.join(assets, relative);
     await route.fulfill({ contentType: file.endsWith('.css') ? 'text/css' : 'text/javascript', body: await fs.readFile(file) });
   });
   await page.goto('http://localhost:43179/env/parent');
-  const result = await page.evaluate(async () => {
+  const b = found.bindings;
+  const result = await page.evaluate(async (b) => {
     const check = (value, message) => { if (!value) throw new Error(message); };
-    const [{ al: registry, nS: dateTime }, { rt: details, it: shells }, { ut: server },
-      { t: sessions }, { v: orchestration }, { host }] = await Promise.all([
-      import('/assets/utils-BL51zcsk.js'), import('/assets/projectGrouping-aRBPi9Ux.js'),
-      import('/assets/themePalette-owjsZZI0.js'), import('/assets/session-D2SVRPH0.js'),
-      import('/assets/queries-0E2-XBJB.js'), import('/assets/model-council/host-v017.mjs'),
-    ]);
+    const pick = async (name) => (await import(`/assets/${b[name].chunk}`))[b[name].alias];
+    const [registry, dateTime, details, shells, server, orchestration, draftStore] = await Promise.all(
+      ['registry', 'dateTime', 'details', 'shells', 'server', 'orchestration', 'draftStore'].map(pick));
+    // The session atoms live in the permission check's chunk; find the export that carries them.
+    const sessions = Object.values(await import(`/assets/${b.hasScope.chunk}`)).find((value) => typeof value?.sessionStateAtom === 'function');
+    check(sessions, 'Session atoms export');
+    const { host } = await import('/assets/model-council/host.mjs');
+    check(host.unsupported() === '', 'Adapter reports no unsupported pieces');
     check(typeof registry.get === 'function' && typeof registry.subscribe === 'function', 'Registry export');
     check(typeof details.threadAtom === 'function' && typeof shells.threadShellAtom === 'function', 'Thread exports');
     check(typeof server.configValueAtom === 'function', 'Server export');
@@ -62,7 +72,6 @@ try {
     check(host.projection(ref) === projection, 'Projection');
     check(host.canOperate(ref), 'Scope grant');
     check(host.providers(ref).length === 1 && host.providers(ref)[0] === enabled, 'Provider overrides');
-    const { A: draftStore } = await import('/assets/utils-BL51zcsk.js');
     const actions = draftStore.getState();
     for (const name of ['getDraftSession', 'getComposerDraft', 'markDraftThreadPromoting', 'finalizePromotedDraftThread']) check(typeof actions[name] === 'function', `Draft store exposes ${name}`);
     for (const name of ['session', 'composer', 'markPromoting', 'finalize']) check(typeof host.draft[name] === 'function', `Host draft exposes ${name}`);
@@ -115,7 +124,7 @@ try {
     try { await host.command(ref, command); } catch (error) { refused = /permission/.test(error.message); }
     check(refused && calls === 1, 'Denied commands never dispatch');
     return { adapter: 'passed', settlementDateTime: 'passed', uiMount: 'passed', nativeModelCalls: 0 };
-  });
+  }, b);
   assert.deepEqual(errors, []);
   console.log(JSON.stringify(result));
 } finally {

@@ -1,13 +1,22 @@
 {
   "id": "model-council",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Shared context, independent opinions, peer review, and a final answer in the current T3 chat.",
   "compatibility": {
-    "version": "0.1.7",
-    "commit": "322f6544dfad"
+    "verified": [
+      {
+        "version": "0.1.7",
+        "commit": "322f6544dfad"
+      },
+      {
+        "version": "0.1.9",
+        "commit": "24e77473ecf4"
+      }
+    ],
+    "note": "Informational only. No T3 version or commit is enforced; the client is probed by signature at install time."
   },
   "dependencies": [],
   "entry": "src/ui.mjs",
-  "adapter": "src/host-v017.mjs",
+  "adapter": "src/host.template",
   "name": "Model Council"
 }

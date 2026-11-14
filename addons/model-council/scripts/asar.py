@@ -35,8 +35,21 @@ class Archive:
             stream.seek(self.base + int(node['offset']))
             return stream.read(node['size'])
 
-    def rewrite(self, output, replacements):
+    def rewrite(self, output, replacements, removals=()):
         tree = copy.deepcopy(self.header)
+        for path in removals:
+            parts = path.split('/')
+            trail = [tree]
+            for part in parts[:-1]:
+                trail.append(trail[-1].get('files', {}).get(part) or {})
+            if parts[-1] not in trail[-1].get('files', {}) or path in replacements:
+                raise ValueError(f'Cannot remove missing or replaced ASAR entry: {path}')
+            del trail[-1]['files'][parts[-1]]
+            # Prune only directories this removal emptied.
+            for depth in range(len(parts) - 1, 0, -1):
+                if trail[depth]['files']:
+                    break
+                del trail[depth - 1]['files'][parts[depth - 1]]
         for path in replacements:
             node = tree
             parts = path.split('/')

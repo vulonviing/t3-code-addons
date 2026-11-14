@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Build, verify and reversibly inject the pinned Model Council addon."""
+"""Build, verify and reversibly inject the Model Council addon."""
 import argparse
 import fcntl
 import json
 import os
 import plistlib
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,6 +16,7 @@ sys.dont_write_bytecode = True
 from asar import Archive, digest
 from lifecycle import Transaction, changes, inventory, write_json
 import signing
+from discover import discover as discover_assets, render_adapter
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT
@@ -22,6 +25,7 @@ STATE = STATE_ROOT / 'model-council'
 PREFIX = 'apps/server/dist/client/'
 ENTRY = PREFIX + 'index.html'
 MARKER = '<!-- t3-adds:model-council -->'
+ASSETS = PREFIX + 'assets/model-council/'
 TAG = MARKER + '\n    <script type="module" src="/assets/model-council/ui.mjs"></script>'
 RECEIPT = STATE / 'backups/model-council-install.json'
 
@@ -35,43 +39,90 @@ def run(*args):
     subprocess.run(args, check=True, capture_output=True)
 
 
-def replacements(archive):
+def discover(archive):
+    """Find the client modules this addon imports by how the client uses them. Never refuses.
+
+    A module that cannot be found is listed in `missing`; the generated adapter then reports it at runtime in a
+    dismissible note instead of attaching, which cannot harm the application.
+    """
+    client = PREFIX + 'assets/'
+    assets = {}
+
+    def walk(node, prefix=''):
+        for name, value in node.get('files', {}).items():
+            if 'files' in value:
+                walk(value, prefix + name + '/')
+            elif prefix == client and name.endswith('.js') and 'link' not in value and not value.get('unpacked'):
+                assets[name] = archive.read(prefix + name)
+
+    walk(archive.header)
+    return discover_assets(assets)
+
+
+def host_discovery(app):
+    return discover(Archive(Path(app) / 'Contents/Resources/app.asar'))
+
+
+def sources(found):
+    files = {ASSETS + path.name: path.read_bytes() for path in sorted((MODULE / 'src').glob('*.mjs'))}
+    files[ASSETS + 'host.mjs'] = render_adapter(found).encode()
+    return files
+
+
+def replacements(archive, found):
     index = archive.read(ENTRY).decode()
     if MARKER in index:
         raise ValueError('Addon already present; restore the recorded original before rebuilding.')
     if index.count('</body>') != 1:
         raise ValueError('Unsupported client index: body anchor is not unique.')
-    result = {ENTRY: index.replace('</body>', TAG + '\n  </body>').encode()}
-    for path in sorted((MODULE / 'src').glob('*.mjs')):
-        result[PREFIX + 'assets/model-council/' + path.name] = path.read_bytes()
-    return result
+    return {ENTRY: index.replace('</body>', TAG + '\n  </body>').encode(), **sources(found)}
 
 
 def verify_original(app):
+    """No T3 version, commit, or chunk-hash gate. Only a readable archive with the client entry is required."""
     archive = Archive(app / 'Contents/Resources/app.asar')
-    package = json.loads(archive.read('package.json'))
-    manifest = json.loads((MODULE / 'addon.json').read_text())
-    compatible = manifest['compatibility']
-    if package['version'] != compatible['version'] or package.get('t3codeCommitHash') != compatible['commit']:
-        raise ValueError(f"Unsupported T3 build: {package['version']} / {package.get('t3codeCommitHash')}")
-    hashes = json.loads((MODULE / 'compatibility.json').read_text())
-    for path, expected in hashes.items():
-        if digest(archive.read(path)) != expected:
-            raise ValueError(f'Changed or unsupported integration file: {path}')
+    archive.read('package.json')
+    archive.read(ENTRY)
     return archive
 
 
-def validate_prepared(app):
+def logical_entries(app):
+    """Logical ASAR entries: content hash, or link target. Unpacked entries are compared only as {'unpacked': True},
+    so this check cannot see edits to their contents; those are covered only by the bundle inventory and signature
+    checks (unpacked native code is re-signed with the bundle, so its bytes legitimately change)."""
+    archive = Archive(Path(app) / 'Contents/Resources/app.asar')
+    result = {}
+
+    def walk(node, prefix=''):
+        for name, value in node.get('files', {}).items():
+            path = prefix + name
+            if 'files' in value:
+                walk(value, path + '/')
+            elif 'link' in value:
+                result[path] = {'link': value['link']}
+            elif value.get('unpacked'):
+                result[path] = {'unpacked': True}
+            else:
+                result[path] = {'sha256': digest(archive.read(path))}
+
+    walk(archive.header)
+    return result
+
+
+def validate_prepared(app, original):
+    """Exactly the entry tag and this addon's files differ from the original archive; integrity and signature hold."""
+    found = host_discovery(original)
     archive = Archive(app / 'Contents/Resources/app.asar')
-    expected = json.loads((MODULE / 'compatibility.json').read_text())
-    for path, hash_ in expected.items():
-        if path != ENTRY and digest(archive.read(path)) != hash_:
-            raise ValueError(f'Unexpected host change: {path}')
+    expected = sources(found)
+    before, after = logical_entries(original), logical_entries(app)
+    unexpected = {p for p in before.keys() | after.keys() if before.get(p) != after.get(p)} - set(expected) - {ENTRY}
+    if unexpected:
+        raise ValueError('Unexpected host change: ' + ', '.join(sorted(unexpected)[:5]))
     if archive.read(ENTRY).decode().count(MARKER) != 1:
         raise ValueError('Missing or duplicate addon entry')
-    for source in (MODULE / 'src').glob('*.mjs'):
-        if archive.read(PREFIX + 'assets/model-council/' + source.name) != source.read_bytes():
-            raise ValueError(f'Addon mismatch: {source.name}')
+    for path, data in expected.items():
+        if archive.read(path) != data:
+            raise ValueError(f'Addon mismatch: {path[len(ASSETS):]}')
     with (app / 'Contents/Info.plist').open('rb') as stream:
         plist = plistlib.load(stream)
     if plist['ElectronAsarIntegrity']['Resources/app.asar']['hash'] != digest(archive.header_bytes):
@@ -92,6 +143,26 @@ def verify_signed(app):
     run('codesign', '--verify', '--deep', '--strict', str(app))
 
 
+def recorded_teams(app):
+    """Distributor teams recorded for this application: earlier official installs and verified original backups."""
+    teams = set()
+    for path in (STATE / 'transactions').glob('*.json'):
+        try:
+            value = json.loads(path.read_text()).get('metadata', {}).get('distributorTeam')
+        except (OSError, ValueError, AttributeError):
+            continue
+        if value and value != 'not set':
+            teams.add(value)
+    for backup in (STATE / 'backups').glob('*/' + app.name):
+        try:
+            value = team(backup)
+        except (ValueError, OSError, subprocess.CalledProcessError):
+            continue
+        if value and value != 'not set':
+            teams.add(value)
+    return teams
+
+
 def team(app):
     verify_signed(app)
     result = subprocess.run(['codesign', '-dv', str(app)], check=True, capture_output=True, text=True)
@@ -100,7 +171,7 @@ def team(app):
 
 
 def source_record():
-    paths = [ROOT / name for name in ('addon.json', 'compatibility.json', 'integration.patch')]
+    paths = [ROOT / name for name in ('addon.json', 'compatibility.json', 'integration.patch', 'src/host.template')]
     paths += sorted((ROOT / 'src').glob('*.mjs'))
     paths += sorted(path for path in (ROOT / 'scripts').iterdir() if path.suffix in ('.py', '.mjs'))
     return {str(path.relative_to(ROOT)): digest(path.read_bytes()) for path in paths}
@@ -124,18 +195,140 @@ def archive_changes(original, installed):
     return changes(entries(original), entries(installed))
 
 
+def is_code_signature_file(path):
+    return path == '_CodeSignature/CodeResources' or path.endswith('/_CodeSignature/CodeResources')
+
+
+def is_macho(path):
+    try:
+        with open(path, 'rb') as stream:
+            return stream.read(4) in signing.MACHO
+    except OSError:
+        return False
+
+
+def unsigned_code_equal(first, second):
+    """Compare code after removing signatures from disposable external copies."""
+    with tempfile.TemporaryDirectory(prefix='t3-code-compare-') as directory:
+        copies = [Path(directory) / name for name in ('first', 'second')]
+        for source, target in zip((first, second), copies):
+            shutil.copy2(source, target)
+            run('/usr/bin/codesign', '--remove-signature', str(target))
+        return copies[0].read_bytes() == copies[1].read_bytes()
+
+
+def signature_drift(app, original, receipt, current, layered=False):
+    """Return the files whose bytes differ only because codesign rewrote them, or refuse.
+
+    Allowed: regular files that were Mach-O code in the original, or a bundle's
+    _CodeSignature/CodeResources, with equal size and mode. Everything else must match the receipt.
+    """
+    recorded = receipt['installedInventory']
+    if current.keys() != recorded.keys():
+        extra = sorted(current.keys() ^ recorded.keys())[:3]
+        raise ValueError(f'Application changed since recording (files added or removed: {extra}); refusing replacement.')
+    drift = []
+    for path in sorted(current):
+        now, before = current[path], recorded[path]
+        if now == before:
+            continue
+        if layered and path in LAYERED_SKIPPED:
+            continue  # the archive and the plist integrity hash are checked separately
+        same_shape = (now.get('kind') == before.get('kind') == 'file' and now['size'] == before['size']
+                      and now['mode'] == before['mode'])
+        code = is_code_signature_file(path) or (is_macho(original / path) and is_macho(app / path))
+        if not (same_shape and code) or (not is_code_signature_file(path) and
+                not unsigned_code_equal(original / path, app / path)):
+            raise ValueError(f'Application changed since recording ({path} is not a signature-only difference); refusing replacement.')
+        drift.append(path)
+    return drift
+
+
+LAYERED_SKIPPED = ('Contents/Resources/app.asar', 'Contents/Info.plist')
+OTHER_ADDON = re.compile(r'<!-- t3-adds:[\w-]+ -->\n\s*<script type="module" src="/assets/[\w-]+/[\w.-]+"></script>\n  ')
+OWN_BLOCK = TAG + '\n  '
+
+
+def owned_entries(receipt):
+    """The archive files this addon added: recorded directly, or derived from an older receipt's archive changes."""
+    if receipt.get('ownedEntries'):
+        return dict(receipt['ownedEntries'])
+    return {c['path']: c['after']['sha256'] for c in receipt.get('archiveChanges', [])
+            if c['path'].startswith(ASSETS) and c.get('after') and c['after'].get('sha256')}
+
+
+def plist_without_integrity(path):
+    with (Path(path) / 'Contents/Info.plist').open('rb') as stream:
+        plist = plistlib.load(stream)
+    plist.get('ElectronAsarIntegrity', {}).get('Resources/app.asar', {}).pop('hash', None)
+    return plist
+
+
+def check_layered(app, original, receipt):
+    """Verify only what this addon owns while other addons are installed beside it.
+
+    The archive must equal the original plus this addon's files and tag plus other addons' marked additions (files
+    under their own assets/<id>/ directory and their marked script lines). Anything else, such as an official update
+    that replaced the archive, is refused. Unpacked entries are compared only as {'unpacked': True}.
+    """
+    changed = 'Installation changed since injection; refusing to overwrite an update.'
+    owned = owned_entries(receipt)
+    if not owned or 'installedInventory' not in receipt:
+        raise ValueError(changed + ' (This receipt cannot be verified beside other addons.)')
+    current, base = logical_entries(app), logical_entries(original)
+    for path, expected in owned.items():
+        if current.get(path, {}).get('sha256') != expected:
+            raise ValueError(f'Model Council file changed or missing: {path[len(ASSETS):]}')
+    archive = Archive(app / 'Contents/Resources/app.asar')
+    index = archive.read(ENTRY).decode()
+    if index.count(MARKER) != 1 or index.count(OWN_BLOCK) != 1:
+        raise ValueError('The Model Council entry in the installed application is missing or was changed.')
+    stripped = OTHER_ADDON.sub('', index.replace(OWN_BLOCK, '', 1))
+    if stripped != Archive(original / 'Contents/Resources/app.asar').read(ENTRY).decode():
+        raise ValueError(changed)
+    other = PREFIX + 'assets/'
+    # Only addons whose marked script line is actually present may add files, and only under their own assets/<id>/.
+    marked = {m for m in re.findall(r'<!-- t3-adds:[\w-]+ -->\n\s*<script type="module" src="/assets/([\w-]+)/', index)}
+    marked.discard('model-council')
+    for path in sorted(current.keys() | base.keys()):
+        if path in owned or path == ENTRY or current.get(path) == base.get(path):
+            continue
+        if path not in base and path.startswith(other) and path[len(other):].split('/', 1)[0] in marked and '/' in path[len(other):]:
+            continue  # a marked addon's own assets/<id>/ file; Model Council's own directory is never tolerated
+        raise ValueError(changed)
+    if receipt.get('host', {}).get('bundleId') and identity(app)['bundleId'] != receipt['host']['bundleId']:
+        raise ValueError(changed)
+    for chunk, expected in receipt.get('hostDiscovery', {}).get('chunkSha256', {}).items():
+        if current.get(PREFIX + 'assets/' + chunk, {}).get('sha256') != expected:
+            raise ValueError(changed)
+    if plist_without_integrity(app) != plist_without_integrity(original):
+        raise ValueError(changed)
+
+
 def checked_receipt(app, persist_adoption=False):
     receipt = json.loads(RECEIPT.read_text())
     if receipt['app'] != str(app):
         raise ValueError('Receipt belongs to a different installation.')
     original = backup_path(receipt['backup'])
     verify_signed(original)
-    if digest((app / 'Contents/Resources/app.asar').read_bytes()) != receipt['installedAsarHash']:
-        raise ValueError('Installation changed since injection; refusing to overwrite an update.')
+    layered = digest((app / 'Contents/Resources/app.asar').read_bytes()) != receipt['installedAsarHash']
+    if layered:
+        # Other addons changed the archive after injection: verify only what this addon owns.
+        check_layered(app, original, receipt)
+        receipt['layered'] = True
     if 'installedInventory' in receipt:
-        if inventory(app) != receipt['installedInventory'] or inventory(original) != receipt['originalInventory']:
+        if inventory(original) != receipt['originalInventory']:
             raise ValueError('Application or original backup changed since recording; refusing replacement.')
-        if receipt.get('signing'):
+        current = inventory(app)
+        if current != receipt['installedInventory']:
+            drift = signature_drift(app, original, receipt, current, layered)
+            # Accept re-signing only when the strict pinned-certificate verification passes first.
+            if not receipt.get('signing'):
+                raise ValueError('Application changed since recording and no pinned signing record exists; refusing replacement.')
+            signing.verify(app, receipt['signing'])
+            receipt['acceptedSignatureDrift'] = drift
+            print(f'Notice: accepted signature-only drift in {len(drift)} files (the app was re-signed by the pinned local certificate, for example by an overlay addon).')
+        elif receipt.get('signing'):
             signing.verify(app, receipt['signing'])
     else:
         verify_original(original)
@@ -166,7 +359,7 @@ def prepare(app, staged):
     run('ditto', str(app), str(staged))
     archive_path = staged / 'Contents/Resources/app.asar'
     rewritten = archive_path.with_suffix('.asar.new')
-    header_hash = original.rewrite(rewritten, replacements(original))
+    header_hash = original.rewrite(rewritten, replacements(original, discover(original)))
     os.replace(rewritten, archive_path)
     info = staged / 'Contents/Info.plist'
     with info.open('rb') as stream:
@@ -175,10 +368,87 @@ def prepare(app, staged):
     with info.open('wb') as stream:
         plistlib.dump(plist, stream)
     signature = signing.sign(staged, STATE)
-    validate_prepared(staged)
+    validate_prepared(staged, app)
     write_json(staged.with_name(staged.name + '.prepared.json'),
                dict(original=inventory(app), prepared=inventory(staged), sources=source_record(), signing=signature))
     return staged
+
+
+def validate_layered(app, before, replacements, removals):
+    """After a layered operation exactly the planned entries changed; integrity and signature hold."""
+    after = logical_entries(app)
+    planned = set(replacements) | set(removals)
+    unexpected = {p for p in before.keys() | after.keys() if before.get(p) != after.get(p)} - planned
+    if unexpected:
+        raise ValueError('Unexpected host change: ' + ', '.join(sorted(unexpected)[:5]))
+    archive = Archive(app / 'Contents/Resources/app.asar')
+    for path, data in replacements.items():
+        if after.get(path, {}).get('sha256') != digest(data):
+            raise ValueError(f'Addon mismatch: {path}')
+    for path in removals:
+        if path in after:
+            raise ValueError(f'Entry was not removed: {path}')
+    with (app / 'Contents/Info.plist').open('rb') as stream:
+        plist = plistlib.load(stream)
+    if plist['ElectronAsarIntegrity']['Resources/app.asar']['hash'] != digest(archive.header_bytes):
+        raise ValueError('Electron ASAR integrity mismatch')
+    run('codesign', '--verify', '--deep', '--strict', str(app))
+
+
+def layered_operation(args, app, receipt, transaction):
+    """Withdraw or update only this addon's entries in an archive that other addons also changed.
+
+    The current application is copied, only the recorded entries are rewritten, and the copy is re-signed with the
+    persistent certificate. The previous application stays recoverable, and nothing else in the archive is touched.
+    """
+    if args.staged.exists():
+        raise ValueError('Staging path exists; preserve or remove it before this operation.')
+    archive = Archive(app / 'Contents/Resources/app.asar')
+    owned = owned_entries(receipt)
+    index = archive.read(ENTRY).decode()
+    found = None
+    if args.action == 'restore':
+        replacements, removals = {ENTRY: index.replace(OWN_BLOCK, '', 1).encode()}, sorted(owned)
+    else:
+        found = discover(archive)
+        replacements = sources(found)
+        removals = sorted(set(owned) - set(replacements))
+    before = logical_entries(app)
+    signing.load(STATE)
+    args.staged.parent.mkdir(parents=True, exist_ok=True)
+    run('ditto', str(app), str(args.staged))
+    archive_path = args.staged / 'Contents/Resources/app.asar'
+    rewritten = archive_path.with_suffix('.asar.new')
+    header_hash = archive.rewrite(rewritten, replacements, removals)
+    os.replace(rewritten, archive_path)
+    info = args.staged / 'Contents/Info.plist'
+    with info.open('rb') as stream:
+        plist = plistlib.load(stream)
+    plist['ElectronAsarIntegrity']['Resources/app.asar']['hash'] = header_hash
+    with info.open('wb') as stream:
+        plistlib.dump(plist, stream)
+    signature = signing.sign(args.staged, STATE)
+    validate_layered(args.staged, before, replacements, removals)
+
+    def validator(path):
+        validate_layered(path, before, replacements, removals)
+        signing.verify(path, signing.load(STATE))
+
+    next_receipt = None
+    if args.action == 'update':
+        installed = inventory(args.staged)
+        next_receipt = {key: value for key, value in receipt.items() if key not in ('layered', 'acceptedSignatureDrift')}
+        next_receipt.update(addon=json.loads((ROOT / 'addon.json').read_text()), sources=source_record(),
+                            hostDiscovery=found, signing=signature,
+                            ownedEntries={path: digest(data) for path, data in replacements.items() if path.startswith(ASSETS)},
+                            installedAsarHash=digest(archive_path.read_bytes()), installedInventory=installed,
+                            archiveChanges=changes(before, logical_entries(args.staged)))
+    transaction.start(app, args.staged, RECEIPT, next_receipt,
+                      dict(action=args.action, layered=True, host=identity(app), sources=source_record()))
+    transaction.execute(validator)
+    print('Model Council withdrawn; other addons and official files were not touched.' if args.action == 'restore'
+          else 'Model Council updated; other addons and official files were not touched.')
+    print('File changes and recovery copies recorded outside the project. Restart T3 to load the installed bundle.')
 
 
 def main():
@@ -218,7 +488,13 @@ def execute(args, app):
         else:
             verify_original(app)
             verify_signed(app)
-            print('Compatible original T3 installation verified.')
+            print('Original T3 installation verified.')
+            found = host_discovery(app)
+            if found['missing']:
+                print('Warning: could not find in this T3 release: ' + ', '.join(found['missing'])
+                      + '. An install would still be safe; the addon would show a dismissible note instead of attaching.')
+            else:
+                print('All T3 client modules this addon uses were found by signature.')
         return
     if args.action == 'stage':
         print(prepare(app, args.staged))
@@ -231,7 +507,13 @@ def execute(args, app):
         candidate = args.candidate.resolve()
         before, after = identity(app), identity(candidate)
         current_team, candidate_team = team(app), team(candidate)
-        if not current_team or current_team == 'not set' or current_team != candidate_team:
+        if not candidate_team or candidate_team == 'not set':
+            raise ValueError('Official update must have a verified distributor team.')
+        locally_signed = not current_team or current_team == 'not set'
+        # A locally signed app (for example after an overlay) has no distributor team, so compare with the team
+        # recorded for the original app instead of the live bundle.
+        teams = {current_team} if not locally_signed else recorded_teams(app)
+        if candidate_team not in teams:
             raise ValueError('Official update must have the same verified distributor team as the original app.')
         if before['bundleId'] != after['bundleId']:
             raise ValueError('Official update has a different application identity.')
@@ -240,8 +522,10 @@ def execute(args, app):
             if len(parts) != 3 or not all(part.isdigit() for part in parts):
                 raise ValueError('Automatic installation supports stable numeric versions only.')
             return tuple(map(int, parts))
-        if version(after['version']) <= version(before['version']):
-            raise ValueError('Candidate must be a newer official release; no downgrade or reinstall.')
+        if version(after['version']) < version(before['version']) or (
+                version(after['version']) == version(before['version']) and not locally_signed):
+            raise ValueError('Candidate must be a newer official release; no downgrade, and no same-version '
+                             'reinstall over a distributor-signed app.')
         transaction.start(app, candidate, RECEIPT, None,
                           dict(action='install-official', hostBefore=before, hostAfter=after,
                                distributorTeam=candidate_team))
@@ -250,6 +534,8 @@ def execute(args, app):
         return
     if args.action in ('update', 'restore'):
         receipt, original = checked_receipt(app, persist_adoption=True)
+        if receipt.get('layered'):
+            return layered_operation(args, app, receipt, transaction)
     else:
         if RECEIPT.exists():
             raise ValueError('An installation receipt exists. Check or restore it before applying again.')
@@ -281,16 +567,18 @@ def execute(args, app):
             if expected.get('signing', {}).get('sha1') != config['sha1']:
                 raise ValueError('Staged signing identity differs from the configured persistent identity; prepare a new staging path.')
             signing.verify(args.staged, config)
-            validate_prepared(args.staged)
+            validate_prepared(args.staged, original)
         else:
             prepare(original, args.staged)
         def validator(path):
-            validate_prepared(path)
+            validate_prepared(path, original)
             signing.verify(path, signing.load(STATE))
         installed = inventory(args.staged)
         next_receipt = dict(schemaVersion=2, app=str(app),
                             addon=json.loads((ROOT / 'addon.json').read_text()),
                             host=identity(original), sources=source_record(),
+                            hostDiscovery=host_discovery(original),
+                            ownedEntries={path: digest(data) for path, data in sources(host_discovery(original)).items()},
                             installedAsarHash=digest((args.staged / 'Contents/Resources/app.asar').read_bytes()),
                             originalAsarHash=digest((original / 'Contents/Resources/app.asar').read_bytes()),
                             originalInventory=inventory(original), installedInventory=installed)
@@ -302,8 +590,11 @@ def execute(args, app):
         next_receipt['archiveChanges'] = archive_changes(original, args.staged)
         if receipt:
             next_receipt['backup'] = receipt['backup']
+            if receipt.get('acceptedSignatureDrift'):
+                next_receipt['acceptedSignatureDrift'] = receipt['acceptedSignatureDrift']
     record = transaction.start(app, args.staged, RECEIPT, next_receipt,
-                               dict(action=args.action, host=identity(original), sources=source_record()))
+                               dict(action=args.action, host=identity(original), sources=source_record(),
+                                    acceptedSignatureDrift=(receipt or {}).get('acceptedSignatureDrift', [])))
     if args.action == 'apply':
         next_receipt['backup'] = str(Path(record['previous']).relative_to(STATE))
         record['receiptAfter'] = next_receipt
