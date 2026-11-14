@@ -1,5 +1,14 @@
 {
-  "apps/server/dist/client/assets/utils-BL51zcsk.js": "754363c6f1283ee814cdf1dae8dbc6f13d66810ba2b6373b17c6b4c10076e099",
-  "apps/server/dist/client/assets/projectGrouping-aRBPi9Ux.js": "23ae53de4ed269aaa91a3e3c43b02f8b2858020d8308c7cd83521c36763fa994",
-  "apps/server/dist/client/assets/themePalette-owjsZZI0.js": "0419486ea48e2bb5d9001863ff249f9030c69527ed3173952bcd49850c93cc0c"
+  "verifiedHosts": [
+    "0.1.7",
+    "0.1.9"
+  ],
+  "pinnedFiles": {},
+  "discovery": {
+    "registry": "The value passed to the atom-registry context provider.",
+    "details": "The exported module value on which .threadAtom( is called.",
+    "server": "The exported module value on which .configValueAtom( and .providersValueAtom( are called.",
+    "notes": "Chunk names and aliases are discovered by scripts/discover.py and rendered into host.mjs; chunk hashes are recorded in the install receipt, not pinned.",
+    "onFailure": "Installation still proceeds (the overlay only adds its own files); the addon shows a dismissible note that it could not attach."
+  }
 }

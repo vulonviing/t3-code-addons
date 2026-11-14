@@ -3,12 +3,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const addon = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assets = process.argv[2];
 if (!assets) throw new Error('Usage: node scripts/verify_host.mjs /external/official-client-assets');
+const found = JSON.parse(execFileSync('python3', [path.join(addon, 'scripts/discover.py'), assets], { encoding: 'utf8' }));
+const adapter = execFileSync('python3', [path.join(addon, 'scripts/discover.py'), assets, '--adapter'], { encoding: 'utf8' });
 const browser = await chromium.launch({
   ...(process.env.T3_ADDS_TEST_BROWSER ? { executablePath: process.env.T3_ADDS_TEST_BROWSER } : {}),
   headless: true,
@@ -25,16 +28,17 @@ try {
       return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head></head><body><div id="root"></div></body></html>' });
     }
     const relative = url.pathname.slice('/assets/'.length);
+    if (relative === 'thread-details/host.mjs') return route.fulfill({ contentType: 'text/javascript', body: adapter });
     const file = relative.startsWith('thread-details/')
       ? path.join(addon, 'src', relative.slice('thread-details/'.length)) : path.join(assets, relative);
     await route.fulfill({ contentType: file.endsWith('.css') ? 'text/css' : 'text/javascript', body: await fs.readFile(file) });
   });
   await page.goto('http://localhost:43179/env/thread1');
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async (found) => {
     const check = (value, message) => { if (!value) throw new Error(message); };
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const [{ al: registry }, { rt: details }, { ut: server }] = await Promise.all([
-      import('/assets/utils-BL51zcsk.js'), import('/assets/projectGrouping-aRBPi9Ux.js'), import('/assets/themePalette-owjsZZI0.js')]);
+    const load = async ({ chunk, alias }) => (await import('/assets/' + chunk))[alias];
+    const [registry, details, server] = await Promise.all([load(found.parts.registry), load(found.parts.details), load(found.parts.server)]);
     check(typeof registry.subscribe === 'function' && typeof details.threadAtom === 'function'
       && typeof server.configValueAtom === 'function', 'Host exports');
     const ref = { environmentId: 'env', threadId: 'thread1' };
@@ -99,7 +103,7 @@ try {
     await wait(100);
     check(stopped >= 1, 'Observation stopped off a thread route');
     return { adapter: 'passed', placement: 'passed', usage: 'passed', plan: 'passed', follow: 'passed', routeChange: 'passed' };
-  });
+  }, found);
   assert.deepEqual(errors, []);
   console.log(JSON.stringify(result));
 } finally {

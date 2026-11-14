@@ -13,11 +13,11 @@ This folder contains the source, manifest, tests, and installation tools. It wor
 
 ## Requirements
 
-- macOS with **T3 Code Beta 0.1.7**, source commit **`322f6544dfad`**.
+- macOS with T3 Code Beta. Verified on **0.1.7** and **0.1.9**; no T3 version or commit is checked.
 - Python 3 and the macOS `ditto`, `codesign`, and `security` commands for installation.
 - Node.js 20+ for the tests.
 
-This is a local application modification, not an official T3 plugin API. The installer checks the exact build and the hashes of the three host files it imports. It refuses unsupported builds; a newer T3 release needs a compatibility review first.
+This is a local application modification, not an official T3 plugin API. The installer does not check a T3 version, commit, or file hash. `scripts/discover.py` finds the three host modules it reads (the atom registry, the thread state, and the server state) in the target client by how the client uses them, and renders the adapter `host.mjs` from `src/host.template` with the discovered chunk names and aliases; chunk hashes are recorded in the install receipt. If a module cannot be found, installation still proceeds because the overlay only adds its own files, and the addon shows a small dismissible note (once per load) saying it could not attach and why. `check` prints the discovery result.
 
 ## Install
 
@@ -78,7 +78,7 @@ T3_ADDS_TEST_BROWSER="/path/to/Chrome" node scripts/verify_host.mjs /external/em
 
 ## Limitations
 
-- Verified only against T3 Code Beta 0.1.7. The addon imports hashed internal modules and finds T3's card through its `data-thread-details-card` attribute, so a T3 rebuild that changes either needs an adapter update. If the card is not found, the companion card stays hidden.
+- Verified against T3 Code Beta 0.1.7 and 0.1.9. After an official update, run `update` so the adapter is regenerated for the new chunk names. The addon finds T3's card through its `data-thread-details-card` attribute; a T3 rebuild that restructures the host modules makes the addon show its note until the discovery signatures are updated. If the card is not found, the companion card stays hidden.
 - T3 can show thread details in more than one way; only the floating card was exercised. Other presentations were not verified.
 - The plan provider shown by default is the chat's recorded model. Switching models in the message box before sending does not change it until the chat records that model.
 - Hover details use the browser's own tooltip, which appears after a short delay.

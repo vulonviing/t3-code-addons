@@ -1,11 +1,11 @@
 {
   "name": "@t3-adds/thread-details",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "A companion card for T3 Code's thread-details card.",
   "scripts": {
-    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_installer.py",
+    "test": "node --test test/*.test.mjs && python3 scripts/test_asar.py && python3 scripts/test_discover.py && python3 scripts/test_installer.py",
     "setup-signing": "python3 scripts/install.py setup-signing",
     "check": "python3 scripts/install.py check",
     "apply": "python3 scripts/install.py apply",

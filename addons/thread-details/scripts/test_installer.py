@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True
 import install
 from asar import Archive, digest
 
+REAL_DISCOVER, REAL_SOURCES = install.discover, install.sources
 INDEX = '<html>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n'
 
 
@@ -49,8 +50,7 @@ class LayeredInstallerTests(unittest.TestCase):
         self.state = self.root / 'state'
         self.app = self.root / 'App.app'
         (self.app / 'Contents/Resources').mkdir(parents=True)
-        package = json.dumps({'version': install.ADDON['compatibility']['version'],
-                              't3codeCommitHash': install.ADDON['compatibility']['commit']}).encode()
+        package = json.dumps({'version': '0.1.9', 't3codeCommitHash': 'example'}).encode()
         header_hash = write_archive(self.app / 'Contents/Resources/app.asar', {
             'package.json': package, install.ENTRY: INDEX.encode(),
             install.PREFIX + 'assets/host.js': b'host', 'other.txt': b'keep'})
@@ -61,7 +61,8 @@ class LayeredInstallerTests(unittest.TestCase):
         patches = [
             patch.object(install, 'STATE', self.state),
             patch.object(install, 'RECEIPT', self.state / 'installation.json'),
-            patch.object(install, 'sources', lambda: dict(self.sources)),
+            patch.object(install, 'sources', lambda found: dict(self.sources)),
+            patch.object(install, 'discover', lambda archive: {'status': 'attached', 'chunk': 'host.js', 'chunkSha256': 'x'}),
             patch.object(install, 'source_record', lambda: {'src': 'x'}),
             patch.object(install, 'verify_signed', lambda path: None),
             patch.object(install, 'verify_host', lambda app: Archive(Path(app) / 'Contents/Resources/app.asar')),
@@ -153,14 +154,23 @@ class LayeredInstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'still present'):
             self.run_action('forget')
 
-    def test_unsupported_host_build_is_rejected(self):
-        patch.stopall()
-        with patch.object(install, 'verify_signed', lambda path: None):
+    def test_install_proceeds_without_a_version_gate_when_discovery_fails_and_remove_undoes_it(self):
+        original = self.entries()
+        with patch.object(install, 'discover', REAL_DISCOVER), patch.object(install, 'sources', REAL_SOURCES):
             package = json.loads(Archive(self.app / 'Contents/Resources/app.asar').read('package.json'))
             package['version'] = '9.9.9'
             overlay(self.app, {'package.json': json.dumps(package).encode()})
-            with self.assertRaisesRegex(ValueError, 'Unsupported T3 build'):
-                install.verify_host(self.app)
+            overlay_original = self.entries()
+            self.run_action('apply')
+            archive = Archive(self.app / 'Contents/Resources/app.asar')
+            self.assertIn('const discoveryError = "', archive.read(install.ASSETS + 'host.mjs').decode())
+            receipt = json.loads((self.state / 'installation.json').read_text())
+            self.assertEqual(receipt['hostDiscovery']['status'], 'unattached')
+            self.run_action('remove')
+        self.assertEqual({p: v for p, v in self.entries().items() if p != install.ENTRY},
+                         {p: v for p, v in overlay_original.items() if p != install.ENTRY})
+        self.assertNotIn(install.ASSETS + 'host.mjs', self.entries())
+        self.assertTrue(set(original) <= set(self.entries()))
 
 
 if __name__ == '__main__':

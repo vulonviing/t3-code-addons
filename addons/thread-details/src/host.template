@@ -1,0 +1,21 @@
+// Host adapter template. The installer discovers the T3 host modules in the target client and renders this file as
+// host.mjs; nothing here is pinned to a T3 release. When discovery fails, `host` is null and `attachError` says why.
+// @@DISCOVERY@@
+
+function problem() {
+  if (discoveryError) return discoveryError;
+  if (typeof registry?.subscribe !== 'function' || typeof details?.threadAtom !== 'function'
+      || typeof server?.configValueAtom !== 'function') return 'The thread and server state this addon reads are not available in this T3 release.';
+  return '';
+}
+
+export const attachError = problem();
+
+export const host = attachError ? null : {
+  observeThread(ref, listener) {
+    return registry.subscribe(details.threadAtom(ref), (value) => listener(value?.projection ?? null), { immediate: true });
+  },
+  observeProviders(environmentId, listener) {
+    return registry.subscribe(server.configValueAtom(environmentId), (config) => listener(config?.providers ?? []), { immediate: true });
+  },
+};
